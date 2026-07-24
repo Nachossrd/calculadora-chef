@@ -19,12 +19,15 @@ const Conversion = (() => {
   const FORMATOS = ['paquete', 'bolsa', 'caja', 'botella', 'bandeja', 'frasco', 'pote', 'lata', 'unidad', 'rollo', 'sobre', 'malla'];
 
   /* Convierte texto a número. Acepta:
-     "3"  "2,5"  "2.5"  "1/4"  "3/4"  "1 1/2"  */
+     "3"  "2,5"  "2.5"  "1/4"  "3/4"  "1 1/2"  "1.500" (miles) */
   function parseCantidad(texto) {
     if (typeof texto === 'number') return isFinite(texto) ? texto : null;
     if (texto === null || texto === undefined) return null;
-    const t = String(texto).trim().replace(',', '.');
+    let t = String(texto).trim();
     if (!t) return null;
+    // Punto como separador de miles al estilo chileno: "1.500" → 1500
+    if (/^\d{1,3}(\.\d{3})+(,\d+)?$/.test(t)) t = t.replace(/\./g, '');
+    t = t.replace(',', '.');
 
     const mixto = t.match(/^(\d+(?:\.\d+)?)\s+(\d+)\s*\/\s*(\d+)$/);
     if (mixto) {
@@ -41,10 +44,12 @@ const Conversion = (() => {
     return isFinite(n) ? n : null;
   }
 
-  /* Precio en pesos chilenos: "6.200" o "6200" → 6200 */
+  /* Precio en pesos chilenos: "6.200" o "6200" → 6200.
+     El peso no usa decimales: "1.990,50" y "1990.50" → 1990 */
   function parsePrecio(texto) {
     if (typeof texto === 'number') return Math.round(texto);
-    const digitos = String(texto || '').replace(/[^\d]/g, '');
+    const entero = String(texto || '').split(',')[0].replace(/\.\d{1,2}$/, '');
+    const digitos = entero.replace(/[^\d]/g, '');
     return digitos ? parseInt(digitos, 10) : null;
   }
 

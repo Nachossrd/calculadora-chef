@@ -44,3 +44,8 @@ Los motores no conocen la interfaz (reciben funciones para buscar datos), así
 que agregar margen de ganancia, PDF, lista de compras imprimible o comparación
 de proveedores solo requiere sumar funciones sobre el objeto que devuelve
 `Calculo.presupuesto()`.
+
+**Importante al publicar cambios:** GitHub Pages cachea los archivos ~10
+minutos. Cada vez que se modifique un `.css` o `.js`, hay que subir el número
+de versión en las URLs de `index.html` (`?v=3` → `?v=4`) para que los
+navegadores descarguen la versión nueva.
