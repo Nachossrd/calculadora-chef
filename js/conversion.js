@@ -50,6 +50,7 @@ const Conversion = (() => {
     // Punto como separador de miles al estilo chileno: "1.500" → 1500
     if (/^\d{1,3}(\.\d{3})+(,\d+)?$/.test(t)) t = t.replace(/\./g, '');
     t = t.replace(',', '.');
+    if (t[0] === '.') t = '0' + t;   // ",5" o ".5" → 0.5
 
     const mixto = t.match(/^(\d+(?:\.\d+)?)\s+(\d+)\s*\/\s*(\d+)$/);
     if (mixto) {
