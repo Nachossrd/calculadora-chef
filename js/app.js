@@ -27,8 +27,8 @@
   let capaAcciones = {};
   let capaInput = null;
   let capa2Acciones = {};
-  let formTocado = false;        // ¿hay cambios sin guardar en el formulario abierto?
-  let formActivo = null;         // 'producto' | 'receta' | 'evento' — para el borrador automático
+  let formGuardado = false;      // ¿este formulario alcanzó a guardarse automáticamente?
+  let formActivo = null;         // 'producto' | 'receta' | 'evento' — para el borrador y guardado automático
   let mMedida = null;            // borrador del formulario de medidas (capa2)
   let eventoInstalar = null;     // prompt de instalación de Android
 
@@ -208,7 +208,7 @@
       </div>
     `);
     capaAcciones = {
-      cerrar: cerrarCapa,
+      cerrar: () => cerrarCapa(),
       'medida-editar': d => formMedida(d.id, null, abrirMedidas),
       'medida-nueva': () => formMedida(null, null, abrirMedidas),
     };
@@ -342,7 +342,7 @@
     const b = leerBorrador();
     if (!b) return;
     try {
-      formTocado = true;
+      formGuardado = false;
       if (b.tipo === 'producto') {
         bProducto = Object.assign({ id: null, nombre: '', formato: 'paquete', precioTexto: '', contenidoTexto: '', unidad: 'g', proveedor: '', notas: '' }, b.datos);
         productoAlGuardar = null;
@@ -366,15 +366,125 @@
     }
   }
 
-  /* Pide confirmación antes de botar cambios sin guardar */
-  function confirmarSalida(salir) {
-    if (!formTocado) return salir();
-    confirmar({
-      titulo: '¿Salir sin guardar?',
-      detalle: 'Lo que cambiaste en esta pantalla se perderá.',
-      textoOk: 'Sí, salir',
-      alOk: salir,
-    });
+  /* =========================================================
+     GUARDADO 100% AUTOMÁTICO
+     Cada cambio válido se guarda solo, sin apretar nada.
+     Lo incompleto queda como borrador que nunca se pierde.
+     ========================================================= */
+  function estadoProducto() {
+    const b = bProducto;
+    if (!b.nombre.trim()) return { completo: false, mensaje: '✍️ Ponle nombre y se guardará solo' };
+    const contenido = C.parseCantidad(b.contenidoTexto);
+    if (!contenido || contenido <= 0) return { completo: false, mensaje: 'Falta cuánto trae cada ' + b.formato };
+    const precio = C.parsePrecio(b.precioTexto);
+    if (!precio || precio <= 0) return { completo: false, mensaje: 'Falta el precio' };
+    return { completo: true, mensaje: '✓ Guardado automáticamente' };
+  }
+
+  function estadoReceta() {
+    const b = bReceta;
+    if (!b.nombre.trim()) return { completo: false, mensaje: '✍️ Ponle nombre y se guardará solo' };
+    if (!b.ingredientes.length) return { completo: false, mensaje: 'Agrega al menos un ingrediente' };
+    for (const ing of b.ingredientes) {
+      const p = Datos.producto(ing.productoId);
+      if (!p) return { completo: false, mensaje: 'Quita el ingrediente del producto eliminado' };
+      const cant = C.parseCantidad(ing.cantidadTexto);
+      if (!cant || cant <= 0) return { completo: false, mensaje: 'Falta la cantidad de ' + p.nombre };
+    }
+    return { completo: true, mensaje: '✓ Guardado automáticamente' };
+  }
+
+  function estadoEvento() {
+    const b = bEvento;
+    if (!b.nombre.trim()) return { completo: false, mensaje: '✍️ Ponle nombre y se guardará solo' };
+    const inv = C.parseCantidad(b.invitadosTexto);
+    if (!inv || inv < 1) return { completo: false, mensaje: '¿Cuántos invitados vienen?' };
+    if (!b.sel.size) return { completo: false, mensaje: 'Elige al menos una preparación' };
+    for (const [recetaId, texto] of b.sel) {
+      const r = Datos.receta(recetaId);
+      if (!r) continue;
+      const cant = C.parseCantidad(texto);
+      if (!cant || cant <= 0) return { completo: false, mensaje: `¿Cuántos "${r.nombre}" por persona?` };
+    }
+    return { completo: true, mensaje: '✓ Guardado automáticamente' };
+  }
+
+  function estadoActual() {
+    if (formActivo === 'producto' && bProducto) return estadoProducto();
+    if (formActivo === 'receta' && bReceta) return estadoReceta();
+    if (formActivo === 'evento' && bEvento) return estadoEvento();
+    return null;
+  }
+
+  /* Guarda en silencio si el formulario está completo y actualiza el indicador */
+  function autoGuardar() {
+    const estado = estadoActual();
+    if (estado && estado.completo) {
+      if (formActivo === 'producto') {
+        const b = bProducto;
+        const contenido = C.parseCantidad(b.contenidoTexto);
+        const guardado = Datos.guardarProducto({
+          id: b.id, nombre: b.nombre.trim(), formato: b.formato,
+          precio: C.parsePrecio(b.precioTexto),
+          contenido,
+          unidad: b.unidad,
+          contenidoBase: C.aBase(contenido, b.unidad),
+          proveedor: b.proveedor.trim(), notas: b.notas.trim(),
+        });
+        b.id = guardado.id;
+      } else if (formActivo === 'receta') {
+        const b = bReceta;
+        const guardado = Datos.guardarReceta({
+          id: b.id, nombre: b.nombre.trim(), emoji: b.emoji,
+          porciones: (b.porciones || '').trim() || 'porciones',
+          ingredientes: b.ingredientes.map(ing => ({
+            productoId: ing.productoId,
+            unidad: ing.unidad,
+            cantidadBase: C.aBase(C.parseCantidad(ing.cantidadTexto), ing.unidad),
+          })),
+        });
+        b.id = guardado.id;
+      } else if (formActivo === 'evento') {
+        const b = bEvento;
+        const preparaciones = [];
+        for (const [recetaId, texto] of b.sel) {
+          if (!Datos.receta(recetaId)) continue;
+          preparaciones.push({ recetaId, porPersona: C.parseCantidad(texto) });
+        }
+        const guardado = Datos.guardarEvento({
+          id: b.id, nombre: b.nombre.trim(), fecha: b.fecha || '',
+          invitados: Math.round(C.parseCantidad(b.invitadosTexto)),
+          dias: Math.max(1, Math.round(C.parseCantidad(b.diasTexto) || 1)),
+          preparaciones,
+        });
+        b.id = guardado.id;
+      }
+      formGuardado = true;
+      persistirBorrador();   // el borrador ahora conoce el id guardado
+    }
+    const linea = document.getElementById('estado-guardado');
+    if (estado && linea) linea.textContent = estado.mensaje;
+  }
+
+  /* Cierra el formulario: lo completo ya está guardado; lo incompleto
+     con contenido queda como borrador recuperable */
+  function cerrarFormulario() {
+    const estado = estadoActual();
+    let mantener = false;
+    if (estado && !estado.completo) {
+      if (formActivo === 'producto') {
+        mantener = !!(bProducto.id || bProducto.nombre.trim() || bProducto.precioTexto || bProducto.contenidoTexto);
+      } else if (formActivo === 'receta') {
+        mantener = !!(bReceta.id || bReceta.nombre.trim() || bReceta.ingredientes.length);
+      } else if (formActivo === 'evento') {
+        mantener = !!(bEvento.id || bEvento.nombre.trim() || bEvento.sel.size);
+      }
+    }
+    const habiaGuardado = formGuardado;
+    cerrarCapa(mantener);
+    render();
+    if (habiaGuardado) toast('Guardado ✓');
+    else if (mantener) toast('Quedó como borrador 📝');
   }
 
   /* ---------- capas ---------- */
@@ -392,12 +502,12 @@
     }
   }
 
-  function cerrarCapa() {
+  function cerrarCapa(mantenerBorrador) {
     $capa.classList.remove('visible');
     $capa.innerHTML = '';
     capaAcciones = {};
     capaInput = null;
-    if (formActivo) limpiarBorrador();   // al guardar o descartar, el borrador ya cumplió
+    if (formActivo && !mantenerBorrador) limpiarBorrador();
     formActivo = null;
     document.body.classList.remove('sin-scroll');
   }
@@ -447,7 +557,7 @@
     const borrador = leerBorrador();
     if (borrador) {
       html += `<div class="tarjeta" style="border-left:6px solid var(--acento);margin-bottom:14px">
-        <b>📝 Quedó ${esc(nombreBorrador(borrador))} sin terminar</b>
+        <b>📝 ${borrador.datos.id ? 'Quedaste editando' : 'Quedó'} ${esc(nombreBorrador(borrador))}${borrador.datos.id ? '' : ' sin terminar'}</b>
         <div class="fila-botones" style="margin-top:12px">
           <button class="boton-suave" data-accion="borrador-seguir">✍️ Continuar</button>
           <button class="boton-peligro" data-accion="borrador-borrar">✕ Descartar</button>
@@ -708,10 +818,8 @@
   function formProducto(id, alGuardar) {
     const ex = id ? Datos.producto(id) : null;
     productoAlGuardar = alGuardar || null;
-    if (!alGuardar) {
-      formTocado = false;   // anidado desde una receta: conserva sus cambios pendientes
-      formActivo = 'producto';
-    }
+    formActivo = 'producto';
+    formGuardado = false;
     bProducto = ex ? {
       id: ex.id,
       nombre: ex.nombre,
@@ -772,19 +880,23 @@
 
         ${b.id ? '<div class="separador"></div><button class="boton-peligro" data-accion="prod-eliminar">🗑️ Eliminar producto</button>' : ''}
       </div>
-      <footer class="pie-panel"><button class="boton-principal" data-accion="prod-guardar">✓ Guardar producto</button></footer>
+      <footer class="pie-panel">
+        <p class="estado-guardado" id="estado-guardado">${estadoProducto().mensaje}</p>
+        <button class="boton-principal" data-accion="prod-guardar">✓ Listo</button>
+      </footer>
     `, mantenerScroll);
 
     capaAcciones = {
       cerrar: () => {
-        if (productoAlGuardar) cerrarFormProducto();   // vuelve a la receta, no bota nada
-        else confirmarSalida(cerrarCapa);
+        if (productoAlGuardar) cerrarFormProducto();   // vuelve a la receta
+        else cerrarFormulario();
       },
       'prod-formato': d => { b.formato = d.valor; renderFormProducto(true); },
       'prod-unidad': d => { b.unidad = d.valor; renderFormProducto(true); },
       'prod-medida-nueva': () => formMedida(null, null, m => {
         if (m) b.unidad = m.id;
         renderFormProducto(true);
+        autoGuardar();
       }),
       'prod-guardar': guardarFormProducto,
       'prod-eliminar': () => eliminarProductoConfirm(b.id),
@@ -803,35 +915,30 @@
   function cerrarFormProducto() {
     if (productoAlGuardar) {
       productoAlGuardar = null;
-      renderFormReceta();          // veníamos desde una receta: volvemos a ella
+      formActivo = 'receta';       // veníamos desde una receta: volvemos a ella
+      formGuardado = false;
+      renderFormReceta();
     } else {
       cerrarCapa();
     }
   }
 
   function guardarFormProducto() {
-    const b = bProducto;
-    const nombre = b.nombre.trim();
-    const precio = C.parsePrecio(b.precioTexto);
-    const contenido = C.parseCantidad(b.contenidoTexto);
-    if (!nombre) return toast('Ponle nombre al producto 🙂');
-    if (!precio || precio <= 0) return toast('Falta el precio');
-    if (!contenido || contenido <= 0) return toast('Falta cuánto trae cada ' + b.formato);
-
-    const guardado = Datos.guardarProducto({
-      id: b.id, nombre, formato: b.formato, precio,
-      contenido, unidad: b.unidad, contenidoBase: C.aBase(contenido, b.unidad),
-      proveedor: b.proveedor.trim(), notas: b.notas.trim(),
-    });
-    toast('Producto guardado ✓');
+    autoGuardar();
+    const estado = estadoProducto();
+    if (!estado.completo) return toast(estado.mensaje);
 
     const alGuardar = productoAlGuardar;
-    productoAlGuardar = null;
-    if (alGuardar) { alGuardar(guardado); return; }
-
-    cerrarCapa();
+    if (alGuardar) {
+      const guardado = Datos.producto(bProducto.id);
+      productoAlGuardar = null;
+      formActivo = 'receta';
+      formGuardado = false;
+      alGuardar(guardado);
+      return;
+    }
     if (vista === 'inicio') vista = 'productos';
-    render();
+    cerrarFormulario();
   }
 
   function eliminarProductoConfirm(id) {
@@ -870,8 +977,8 @@
         cantidadTexto: C.textoEditable(i.cantidadBase, i.unidad),
       })),
     } : { id: null, nombre: '', emoji: '🥪', porciones: 'porciones', ingredientes: [] };
-    formTocado = false;
     formActivo = 'receta';
+    formGuardado = false;
     renderFormReceta();
   }
 
@@ -962,11 +1069,14 @@
 
         ${b.id ? '<div class="separador"></div><button class="boton-peligro" data-accion="rec-eliminar">🗑️ Eliminar receta</button>' : ''}
       </div>
-      <footer class="pie-panel"><button class="boton-principal" data-accion="rec-guardar">✓ Guardar receta</button></footer>
+      <footer class="pie-panel">
+        <p class="estado-guardado" id="estado-guardado">${estadoReceta().mensaje}</p>
+        <button class="boton-principal" data-accion="rec-guardar">✓ Listo</button>
+      </footer>
     `, mantenerScroll);
 
     capaAcciones = {
-      cerrar: () => confirmarSalida(cerrarCapa),
+      cerrar: cerrarFormulario,
       'rec-emoji': d => { b.emoji = d.valor; renderFormReceta(true); },
       'rec-unidad': d => { b.ingredientes[+d.i].unidad = d.valor; renderFormReceta(true); },
       'rec-medida-nueva': d => {
@@ -976,6 +1086,7 @@
         formMedida(null, C.familiaDe(p.unidad), m => {
           if (m) ing.unidad = m.id;
           renderFormReceta(true);
+          autoGuardar();
         });
       },
       'rec-quitar': d => { b.ingredientes.splice(+d.i, 1); renderFormReceta(true); },
@@ -999,30 +1110,11 @@
   }
 
   function guardarFormReceta() {
-    const b = bReceta;
-    const nombre = b.nombre.trim();
-    if (!nombre) return toast('Ponle nombre a la receta 🙂');
-    if (!b.ingredientes.length) return toast('Agrega al menos un ingrediente');
-
-    const ingredientes = [];
-    for (const ing of b.ingredientes) {
-      const p = Datos.producto(ing.productoId);
-      if (!p) continue;                                  // limpia productos eliminados
-      const cant = C.parseCantidad(ing.cantidadTexto);
-      if (!cant || cant <= 0) return toast('Falta la cantidad de ' + p.nombre);
-      ingredientes.push({ productoId: ing.productoId, unidad: ing.unidad, cantidadBase: C.aBase(cant, ing.unidad) });
-    }
-    if (!ingredientes.length) return toast('Agrega al menos un ingrediente');
-
-    Datos.guardarReceta({
-      id: b.id, nombre, emoji: b.emoji,
-      porciones: (b.porciones || '').trim() || 'porciones',
-      ingredientes,
-    });
-    cerrarCapa();
+    autoGuardar();
+    const estado = estadoReceta();
+    if (!estado.completo) return toast(estado.mensaje);
     if (vista === 'inicio') vista = 'recetas';
-    render();
-    toast('Receta guardada ✓');
+    cerrarFormulario();
   }
 
   function eliminarRecetaConfirm(id) {
@@ -1093,6 +1185,7 @@
       },
       'picker-crear': () => formProducto(null, prod => {
         bReceta.ingredientes.push({ productoId: prod.id, unidad: unidadBase(C.familiaDe(prod.unidad)), cantidadTexto: '' });
+        formActivo = 'receta';
         renderFormReceta();
       }),
     };
@@ -1121,8 +1214,8 @@
       id: null, nombre: '', fecha: Datos.hoyISO(7),
       invitadosTexto: '30', diasTexto: '1', sel: new Map(),
     };
-    formTocado = false;
     formActivo = 'evento';
+    formGuardado = false;
     renderFormEvento();
   }
 
@@ -1212,11 +1305,14 @@
         <label class="campo">¿Qué vas a servir? <small>(y cuánto por persona)</small></label>
         ${filas}
       </div>
-      <footer class="pie-panel"><button class="boton-principal" data-accion="ev-guardar">✓ Guardar y ver presupuesto</button></footer>
+      <footer class="pie-panel">
+        <p class="estado-guardado" id="estado-guardado">${estadoEvento().mensaje}</p>
+        <button class="boton-principal" data-accion="ev-guardar">✓ Listo, ver presupuesto</button>
+      </footer>
     `, mantenerScroll);
 
     capaAcciones = {
-      cerrar: () => confirmarSalida(cerrarCapa),
+      cerrar: cerrarFormulario,
       'ev-toggle': d => {
         if (b.sel.has(d.id)) b.sel.delete(d.id);
         else b.sel.set(d.id, '1');
@@ -1247,34 +1343,12 @@
   }
 
   function guardarFormEvento() {
-    const b = bEvento;
-    const nombre = b.nombre.trim();
-    if (!nombre) return toast('Ponle nombre al evento 🙂');
-    const invitados = C.parseCantidad(b.invitadosTexto);
-    if (!invitados || invitados < 1) return toast('¿Cuántos invitados vienen?');
-    if (!b.sel.size) return toast('Elige al menos una preparación');
-
-    const preparaciones = [];
-    for (const [recetaId, texto] of b.sel) {
-      const r = Datos.receta(recetaId);
-      if (!r) continue;
-      const cant = C.parseCantidad(texto);
-      if (!cant || cant <= 0) return toast(`¿Cuántos "${r.nombre}" por persona?`);
-      preparaciones.push({ recetaId, porPersona: cant });
-    }
-    if (!preparaciones.length) return toast('Elige al menos una preparación');
-
-    const guardado = Datos.guardarEvento({
-      id: b.id, nombre, fecha: b.fecha || '',
-      invitados: Math.round(invitados),
-      dias: Math.max(1, Math.round(C.parseCantidad(b.diasTexto) || 1)),
-      preparaciones,
-    });
-    cerrarCapa();
+    autoGuardar();
+    const estado = estadoEvento();
+    if (!estado.completo) return toast(estado.mensaje);
     vista = 'eventos';
-    eventoAbierto = guardado.id;
-    render();
-    toast('¡Evento guardado! 🎉');
+    eventoAbierto = bEvento.id;
+    cerrarFormulario();   // abre directo el presupuesto
   }
 
   /* ---------- modificar invitados (recalcula todo) ---------- */
@@ -1457,19 +1531,18 @@
       const el = e.target.closest('[data-accion]');
       if (el && capaAcciones[el.dataset.accion]) {
         e.preventDefault();
-        const accion = el.dataset.accion;
-        if (accion !== 'cerrar' && accion !== 'picker-volver') formTocado = true;
-        capaAcciones[accion](el.dataset, el);
+        capaAcciones[el.dataset.accion](el.dataset, el);
         persistirBorrador();
+        autoGuardar();
       }
     });
 
     const manejarInputCapa = e => {
       const el = e.target;
       if (el.dataset && el.dataset.campo && capaInput) {
-        if (el.dataset.campo !== 'picker-buscar') formTocado = true;
         capaInput(el.dataset.campo, el);
         persistirBorrador();
+        autoGuardar();
       }
     };
     $capa.addEventListener('input', manejarInputCapa);
