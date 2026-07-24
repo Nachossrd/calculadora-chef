@@ -80,6 +80,30 @@
     toastTimer = setTimeout(() => $toast.classList.remove('visible'), 2400);
   }
 
+  /* ---------- tema claro / oscuro ---------- */
+  const TEMA_CLAVE = 'calculadora-chef-tema';
+
+  function aplicarTema(tema) {
+    document.documentElement.dataset.tema = tema;
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.content = tema === 'oscuro' ? '#1F1912' : '#FDF6EE';
+  }
+
+  function temaInicial() {
+    try {
+      const guardado = localStorage.getItem(TEMA_CLAVE);
+      if (guardado === 'oscuro' || guardado === 'claro') return guardado;
+    } catch (e) { /* sin almacenamiento */ }
+    return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'oscuro' : 'claro';
+  }
+
+  function alternarTema() {
+    const nuevo = document.documentElement.dataset.tema === 'oscuro' ? 'claro' : 'oscuro';
+    aplicarTema(nuevo);
+    try { localStorage.setItem(TEMA_CLAVE, nuevo); } catch (e) { /* sin almacenamiento */ }
+    render();
+  }
+
   /* ---------- capas ---------- */
   function abrirPanel(html) {
     capaAcciones = {};
@@ -131,18 +155,27 @@
     const hoy = Datos.hoyISO();
     const proximos = eventos.filter(e => e.fecha && e.fecha >= hoy).sort((a, b) => a.fecha.localeCompare(b.fecha));
     const realizados = eventos.length - proximos.length;
+    const oscuro = document.documentElement.dataset.tema === 'oscuro';
 
-    let html = '';
+    let html = `<div class="fila-saludo">
+      <div>
+        <h1 class="saludo">¡Hola, Chef! 👩‍🍳</h1>
+        <p class="saludo-sub">${fechaLegible(hoy)}</p>
+      </div>
+      <button class="boton-tema" data-accion="alternar-tema" title="Cambiar entre modo claro y oscuro">${oscuro ? '☀️' : '🌙'}</button>
+    </div>`;
 
-    if (Datos.mostrarBienvenida()) {
-      html += `<div class="banner">
-        <div style="flex:1">👋 Te dejé <b>productos, recetas y un evento de ejemplo</b> para que veas cómo funciona. Tócalos, cámbialos o bórralos sin miedo.</div>
-        <button data-accion="cerrar-banner">✕</button>
-      </div>`;
+    if (!productos.length && !recetas.length && !eventos.length) {
+      html += `<div class="tarjeta guia">
+        <h2>¿Cómo funciona? 🍳</h2>
+        <div class="paso-guia"><span class="numero">1</span><span>Anota tus <b>productos</b>: qué compras, cuánto trae cada paquete y su precio.</span></div>
+        <div class="paso-guia"><span class="numero">2</span><span>Crea tus <b>recetas</b> con lo que usa cada porción.</span></div>
+        <div class="paso-guia"><span class="numero">3</span><span>Arma tu <b>evento</b> y la app calcula cuánto comprar y cuánto gastarás.</span></div>
+      </div>
+      <div class="separador"></div>
+      <button class="boton-principal" data-accion="nuevo-producto">🧺 Agregar mi primer producto</button>`;
+      return html;
     }
-
-    html += `<h1 class="saludo">¡Hola, Chef! 👩‍🍳</h1>
-    <p class="saludo-sub">${fechaLegible(hoy)}</p>`;
 
     html += '<div class="subtitulo">Próximos eventos</div>';
     if (proximos.length) {
@@ -413,15 +446,15 @@
         <div class="chips">${C.FORMATOS.map(f =>
           `<button class="chip ${f === b.formato ? 'activo' : ''}" data-accion="prod-formato" data-valor="${f}">${f}</button>`).join('')}</div>
 
-        <label class="campo">Precio de cada ${esc(b.formato)}</label>
-        <div class="campo-precio"><span>$</span><input data-campo="precio" inputmode="numeric" placeholder="6.200" value="${esc(b.precioTexto)}"></div>
-
-        <label class="campo">¿Cuánto trae cada ${esc(b.formato)}?</label>
+        <label class="campo">¿Cuánto trae cada ${esc(b.formato)}? <small>(unidades, gramos, ml…)</small></label>
         <div class="fila-cantidad">
           <input class="entrada" data-campo="contenido" inputmode="decimal" placeholder="250" value="${esc(b.contenidoTexto)}">
           <div class="chips">${Object.keys(C.UNIDADES).map(u =>
             `<button class="chip ${u === b.unidad ? 'activo' : ''}" data-accion="prod-unidad" data-valor="${u}">${C.UNIDADES[u].corto}</button>`).join('')}</div>
         </div>
+
+        <label class="campo">Precio de cada ${esc(b.formato)}</label>
+        <div class="campo-precio"><span>$</span><input data-campo="precio" inputmode="numeric" placeholder="6.200" value="${esc(b.precioTexto)}"></div>
         <p class="pista" id="pista-producto">${pistaProducto()}</p>
 
         <label class="campo">¿Dónde lo compras? <small>(opcional)</small></label>
@@ -961,7 +994,7 @@
      ========================================================= */
   const acciones = {
     ir: d => { vista = d.destino; eventoAbierto = null; render(); },
-    'cerrar-banner': () => { Datos.cerrarBienvenida(); render(); },
+    'alternar-tema': alternarTema,
     'nuevo-producto': () => formProducto(null),
     'editar-producto': d => formProducto(d.id),
     'nueva-receta': () => formReceta(null),
@@ -1003,6 +1036,8 @@
   }
 
   function init() {
+    aplicarTema(temaInicial());
+
     $nav.addEventListener('click', e => {
       const b = e.target.closest('button[data-vista]');
       if (!b) return;

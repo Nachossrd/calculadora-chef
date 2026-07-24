@@ -14,8 +14,9 @@ a cualquier hosting estático (Netlify, Vercel, GitHub Pages).
 Los datos se guardan **en el navegador** (localStorage): si cambias de
 navegador o de aparato, no se traspasan solos.
 
-La primera vez carga ejemplos (jamón, pancitos, el Cumpleaños Sofía) para que
-se vea cómo funciona. Se pueden editar o borrar sin miedo.
+La app parte vacía: primero registras tus productos (qué compras, cuánto trae
+cada paquete y su precio), después tus recetas y al final armas el evento.
+Tiene modo claro y oscuro (botón 🌙/☀️ en la pantalla de inicio).
 
 ## Los 4 módulos
 
@@ -33,7 +34,7 @@ se vea cómo funciona. Se pueden editar o borrar sin miedo.
 ## Arquitectura (para funcionalidades futuras)
 
 | Archivo | Responsabilidad |
-|---|---|
+| --- | --- |
 | `js/conversion.js` | Motor de conversión: g/kg, ml/L, fracciones (1/4, 1 1/2), decimales con coma, formato chileno de números y pesos. |
 | `js/calculo.js` | Motor de cálculo: rendimientos, costo por porción, presupuesto (agrupa ingredientes repetidos entre recetas, redondea envases, calcula excedentes). |
 | `js/datos.js` | Persistencia en localStorage + datos de ejemplo. CRUD de productos, recetas y eventos; duplicar evento. |
