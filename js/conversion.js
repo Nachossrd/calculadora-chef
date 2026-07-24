@@ -1,12 +1,15 @@
 /* =========================================================
    MOTOR DE CONVERSIÓN
-   Convierte entre gramos, kilos, ml, litros y unidades.
-   Entiende fracciones (1/4, 1 1/2) y decimales con coma (2,5).
+   Convierte entre gramos, kilos, ml, litros y unidades, más
+   las medidas que la usuaria defina (taza, cucharada, puñado…).
+   Entiende fracciones (1/4, 1 1/2), decimales con coma (2,5)
+   y el punto de miles chileno (1.500).
    Todo se guarda internamente en unidades base: g, ml, un.
    ========================================================= */
 const Conversion = (() => {
   'use strict';
 
+  /* Unidades fijas, siempre disponibles */
   const UNIDADES = {
     g:  { familia: 'peso',    factor: 1,    nombre: 'gramos',      corto: 'g'  },
     kg: { familia: 'peso',    factor: 1000, nombre: 'kilos',       corto: 'kg' },
@@ -14,6 +17,25 @@ const Conversion = (() => {
     l:  { familia: 'volumen', factor: 1000, nombre: 'litros',      corto: 'L'  },
     un: { familia: 'unidad',  factor: 1,    nombre: 'unidades',    corto: 'un' },
   };
+
+  /* Medidas definidas por la usuaria: id → {nombre, familia, factor} */
+  let personalizadas = {};
+
+  function registrar(medidas) {
+    personalizadas = {};
+    for (const m of (medidas || [])) {
+      if (m && m.id && typeof m.factor === 'number' && m.factor > 0) {
+        personalizadas[m.id] = { familia: m.familia, factor: m.factor, nombre: m.nombre, corto: m.nombre };
+      }
+    }
+  }
+
+  /* Definición de una unidad; si no existe, se trata como 'unidades' */
+  function def(unidad) {
+    return UNIDADES[unidad] || personalizadas[unidad] || UNIDADES.un;
+  }
+
+  const corto = unidad => def(unidad).corto;
 
   // Formatos de compra: solo etiquetas, el contenido real va en la unidad de medida
   const FORMATOS = ['paquete', 'bolsa', 'caja', 'botella', 'bandeja', 'frasco', 'pote', 'lata', 'unidad', 'rollo', 'sobre', 'malla'];
@@ -55,22 +77,27 @@ const Conversion = (() => {
 
   /* Cantidad en cierta unidad → cantidad en unidad base (g / ml / un) */
   function aBase(cantidad, unidad) {
-    const u = UNIDADES[unidad] || UNIDADES.un;
-    return cantidad * u.factor;
+    return cantidad * def(unidad).factor;
   }
 
   /* Cantidad base → cantidad en la unidad indicada */
   function desdeBase(base, unidad) {
-    const u = UNIDADES[unidad] || UNIDADES.un;
-    return base / u.factor;
+    return base / def(unidad).factor;
   }
 
   function familiaDe(unidad) {
-    return (UNIDADES[unidad] || UNIDADES.un).familia;
+    return def(unidad).familia;
   }
 
+  /* Unidades de una familia: fijas primero, luego las de la usuaria */
   function unidadesDeFamilia(familia) {
-    return Object.keys(UNIDADES).filter(k => UNIDADES[k].familia === familia);
+    return Object.keys(UNIDADES).filter(k => UNIDADES[k].familia === familia)
+      .concat(Object.keys(personalizadas).filter(k => personalizadas[k].familia === familia));
+  }
+
+  /* Todas las unidades elegibles al registrar un producto */
+  function unidadesElegibles() {
+    return Object.keys(UNIDADES).concat(Object.keys(personalizadas));
   }
 
   function sonCompatibles(unidadA, unidadB) {
@@ -110,6 +137,7 @@ const Conversion = (() => {
 
   return {
     UNIDADES, FORMATOS,
+    registrar, corto, unidadesElegibles,
     parseCantidad, parsePrecio,
     aBase, desdeBase, familiaDe, unidadesDeFamilia, sonCompatibles,
     numero, pesos, cantidadLegible, textoEditable,

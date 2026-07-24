@@ -29,6 +29,8 @@
   let capa2Acciones = {};
   let formTocado = false;        // ¿hay cambios sin guardar en el formulario abierto?
   let formActivo = null;         // 'producto' | 'receta' | 'evento' — para el borrador automático
+  let mMedida = null;            // borrador del formulario de medidas (capa2)
+  let eventoInstalar = null;     // prompt de instalación de Android
 
   const EMOJIS = ['🥪', '🍕', '🥤', '☕', '🍰', '🥗', '🍗', '🍤', '🧁', '🥟', '🌮', '🍹', '🍞', '🍩', '🍽️'];
   const FORMATO_EMOJI = {
@@ -55,8 +57,8 @@
   function contenidoTexto(p) {
     const sufijo = p.unidad === 'un'
       ? (p.contenido === 1 ? 'unidad' : 'unidades')
-      : C.UNIDADES[p.unidad].corto;
-    return C.numero(p.contenido) + ' ' + sufijo;
+      : C.corto(p.unidad);
+    return C.numero(p.contenido) + ' ' + esc(sufijo);
   }
 
   function descripcionFormato(p) {
@@ -160,6 +162,129 @@
     selector.click();
   }
 
+  /* =========================================================
+     MEDIDAS PERSONALIZADAS
+     Panel para verlas y crearlas, más creación rápida desde
+     los formularios de producto y receta (capa2).
+     ========================================================= */
+  function etiquetaBase(familia) {
+    return familia === 'peso' ? 'gramos' : familia === 'volumen' ? 'ml' : 'unidades';
+  }
+
+  function abrirMedidas() {
+    const lista = Datos.medidas();
+    abrirPanel(`
+      <header class="cabecera-panel">
+        <button class="volver" data-accion="cerrar">←</button>
+        <h2>⚖️ Medidas de cocina</h2>
+      </header>
+      <div class="cuerpo-panel">
+        <p class="pista">💡 Crea tus propias medidas (taza, puñado, caja chica…) y úsalas en productos y recetas. La app convierte todo sola. Toca una para cambiarla.</p>
+        <div class="subtitulo">Siempre disponibles</div>
+        <div class="tarjeta">gramos (g) · kilos (kg) · mililitros (ml) · litros (L) · unidades</div>
+        <div class="subtitulo">Tus medidas</div>
+        <div class="lista">${lista.length ? lista.map(m => `
+          <button class="tarjeta toque" data-accion="medida-editar" data-id="${m.id}">
+            <div class="fila-card">
+              <div class="icono">⚖️</div>
+              <div class="centro"><b>${esc(m.nombre)}</b><small>1 ${esc(m.nombre)} = ${C.numero(m.factor)} ${etiquetaBase(m.familia)}</small></div>
+            </div>
+          </button>`).join('') : '<div class="vacio"><span class="emoji">⚖️</span><p>Aún no creas medidas propias.</p></div>'}
+        </div>
+        <div class="separador"></div>
+        <button class="boton-suave" data-accion="medida-nueva">➕ Nueva medida</button>
+      </div>
+    `);
+    capaAcciones = {
+      cerrar: cerrarCapa,
+      'medida-editar': d => formMedida(d.id, null, abrirMedidas),
+      'medida-nueva': () => formMedida(null, null, abrirMedidas),
+    };
+    capaInput = null;
+  }
+
+  function formMedida(id, familiaFija, alListo) {
+    const ex = id ? Datos.medida(id) : null;
+    mMedida = {
+      id: ex ? ex.id : null,
+      nombre: ex ? ex.nombre : '',
+      familia: familiaFija || (ex ? ex.familia : 'peso'),
+      eqTexto: ex ? String(ex.factor).replace('.', ',') : '',
+      familiaFija: !!familiaFija,
+      alListo: alListo || null,
+    };
+    renderFormMedida();
+  }
+
+  function leerCamposMedida() {
+    const nombre = document.getElementById('medida-nombre');
+    const eq = document.getElementById('medida-eq');
+    if (nombre) mMedida.nombre = nombre.value;
+    if (eq) mMedida.eqTexto = eq.value;
+  }
+
+  function renderFormMedida() {
+    const m = mMedida;
+    $capa2.innerHTML = `
+      <div class="fondo-capa" data-accion="c2-cerrar"></div>
+      <section class="hoja">
+        <h3>⚖️ ${m.id ? 'Editar medida' : 'Nueva medida'}</h3>
+        <label class="campo">¿Cómo se llama?</label>
+        <input class="entrada" id="medida-nombre" placeholder="Ej: taza, puñado, caja chica" value="${esc(m.nombre)}">
+        ${m.familiaFija ? '' : `
+        <label class="campo">¿Qué mide?</label>
+        <div class="chips">${['peso', 'volumen', 'unidad'].map(f =>
+          `<button class="chip ${f === m.familia ? 'activo' : ''}" data-accion="medida-familia" data-valor="${f}">${f === 'peso' ? '⚖️ peso' : f === 'volumen' ? '🥛 líquido' : '🔢 unidades'}</button>`).join('')}</div>`}
+        <label class="campo">¿A cuánto equivale?</label>
+        <div class="fila-cantidad">
+          <span class="por">1 =</span>
+          <input class="entrada" id="medida-eq" inputmode="decimal" placeholder="200" value="${esc(m.eqTexto)}">
+          <span class="por">${etiquetaBase(m.familia)}</span>
+        </div>
+        <div class="separador"></div>
+        <button class="boton-principal" data-accion="medida-guardar">✓ Guardar medida</button>
+        ${m.id ? '<div class="separador" style="height:10px"></div><button class="boton-peligro" data-accion="medida-eliminar">🗑️ Eliminar medida</button>' : ''}
+      </section>`;
+    $capa2.classList.add('visible');
+    capa2Acciones = {
+      'c2-cerrar': cerrarCapa2,
+      'medida-familia': d => { leerCamposMedida(); mMedida.familia = d.valor; renderFormMedida(); },
+      'medida-guardar': guardarFormMedida,
+      'medida-eliminar': () => eliminarMedidaConfirm(mMedida.id),
+    };
+  }
+
+  function guardarFormMedida() {
+    leerCamposMedida();
+    const m = mMedida;
+    const nombre = m.nombre.trim().slice(0, 20);
+    const factor = C.parseCantidad(m.eqTexto);
+    if (!nombre) return toast('Ponle nombre a la medida 🙂');
+    if (!factor || factor <= 0) return toast('¿A cuánto equivale? Ej: 1 taza = 200');
+    const guardada = Datos.guardarMedida({ id: m.id, nombre, familia: m.familia, factor });
+    cerrarCapa2();
+    toast('Medida guardada ✓');
+    if (m.alListo) m.alListo(guardada);
+  }
+
+  function eliminarMedidaConfirm(id) {
+    const medida = Datos.medida(id);
+    if (!medida) return;
+    const usos = Datos.usosDeMedida(id);
+    const alListo = mMedida ? mMedida.alListo : null;
+    confirmar({
+      titulo: `¿Eliminar la medida "${esc(medida.nombre)}"?`,
+      detalle: usos.total
+        ? `La usan ${usos.total} producto(s) o receta(s); quedarán marcados para revisar.`
+        : 'Esta acción no se puede deshacer.',
+      alOk: () => {
+        Datos.eliminarMedida(id);
+        toast('Medida eliminada');
+        if (alListo) alListo(null);
+      },
+    });
+  }
+
   /* ---------- borrador automático ----------
      Todo lo que se escribe en un formulario se guarda al instante.
      Si el teléfono se apaga o el navegador se recarga, al volver
@@ -258,8 +383,8 @@
     $capa.innerHTML = '';
     capaAcciones = {};
     capaInput = null;
+    if (formActivo) limpiarBorrador();   // al guardar o descartar, el borrador ya cumplió
     formActivo = null;
-    limpiarBorrador();   // al guardar o descartar, el borrador ya cumplió
     document.body.classList.remove('sin-scroll');
   }
 
@@ -299,6 +424,10 @@
     const realizados = eventos.length - proximos.length;
 
     let html = cabeceraVista('¡Hola, Chef! 👩‍🍳', fechaLegible(hoy));
+
+    if (eventoInstalar) {
+      html += `<button class="boton-principal" data-accion="instalar-app" style="margin-bottom:14px">📲 Instalar la app en este teléfono</button>`;
+    }
 
     const borrador = leerBorrador();
     if (borrador) {
@@ -351,6 +480,9 @@
       <button class="boton-suave" data-accion="nuevo-producto">🧺 Producto</button>
       <button class="boton-suave" data-accion="nueva-receta">🥪 Receta</button>
     </div>
+
+    <div class="subtitulo">Medidas de cocina</div>
+    <button class="boton-suave" data-accion="medidas-abrir">⚖️ Tazas, cucharadas y medidas propias</button>
 
     <div class="subtitulo">Copia de seguridad</div>
     <div class="fila-botones">
@@ -605,11 +737,11 @@
         <div class="chips">${C.FORMATOS.map(f =>
           `<button class="chip ${f === b.formato ? 'activo' : ''}" data-accion="prod-formato" data-valor="${f}">${f}</button>`).join('')}</div>
 
-        <label class="campo">¿Cuánto trae cada ${esc(b.formato)}? <small>(unidades, gramos, ml…)</small></label>
-        <div class="fila-cantidad">
-          <input class="entrada" data-campo="contenido" inputmode="decimal" placeholder="250" value="${esc(b.contenidoTexto)}">
-          <div class="chips">${Object.keys(C.UNIDADES).map(u =>
-            `<button class="chip ${u === b.unidad ? 'activo' : ''}" data-accion="prod-unidad" data-valor="${u}">${C.UNIDADES[u].corto}</button>`).join('')}</div>
+        <label class="campo">¿Cuánto trae cada ${esc(b.formato)}? <small>(unidades, gramos, ml, tazas…)</small></label>
+        <input class="entrada" data-campo="contenido" inputmode="decimal" placeholder="250" value="${esc(b.contenidoTexto)}">
+        <div class="chips" style="margin-top:8px">${C.unidadesElegibles().map(u =>
+          `<button class="chip ${u === b.unidad ? 'activo' : ''}" data-accion="prod-unidad" data-valor="${u}">${esc(C.corto(u))}</button>`).join('')}
+          <button class="chip" data-accion="prod-medida-nueva" title="Crear otra medida">➕ otra</button>
         </div>
 
         <label class="campo">Precio de cada ${esc(b.formato)}</label>
@@ -634,6 +766,10 @@
       },
       'prod-formato': d => { b.formato = d.valor; renderFormProducto(true); },
       'prod-unidad': d => { b.unidad = d.valor; renderFormProducto(true); },
+      'prod-medida-nueva': () => formMedida(null, null, m => {
+        if (m) b.unidad = m.id;
+        renderFormProducto(true);
+      }),
       'prod-guardar': guardarFormProducto,
       'prod-eliminar': () => eliminarProductoConfirm(b.id),
     };
@@ -758,17 +894,16 @@
     }
     if (!C.sonCompatibles(ing.unidad, p.unidad)) ing.unidad = unidadBase(C.familiaDe(p.unidad));
     const unidades = C.unidadesDeFamilia(C.familiaDe(p.unidad));
-    const selectorUnidad = unidades.length > 1
-      ? `<div class="chips">${unidades.map(u =>
-          `<button class="chip ${u === ing.unidad ? 'activo' : ''}" data-accion="rec-unidad" data-i="${i}" data-valor="${u}">${C.UNIDADES[u].corto}</button>`).join('')}</div>`
-      : `<span class="por">${p.unidad === 'un' ? 'unidades' : C.UNIDADES[p.unidad].corto}</span>`;
     return `<div class="ing">
       <div class="ing-cab"><b>${esc(p.nombre)}</b>
       <button class="quitar" data-accion="rec-quitar" data-i="${i}">✕ Quitar</button></div>
       <div class="fila-cantidad">
         <span class="por">Por porción:</span>
         <input class="entrada" data-campo="rec-cant" data-i="${i}" inputmode="decimal" placeholder="3" value="${esc(ing.cantidadTexto)}">
-        ${selectorUnidad}
+      </div>
+      <div class="chips" style="margin-top:8px">${unidades.map(u =>
+        `<button class="chip ${u === ing.unidad ? 'activo' : ''}" data-accion="rec-unidad" data-i="${i}" data-valor="${u}">${esc(C.corto(u))}</button>`).join('')}
+        <button class="chip" data-accion="rec-medida-nueva" data-i="${i}" title="Crear otra medida">➕ otra</button>
       </div>
       <p class="pista" id="rend-${i}">${lineaRendimiento(ing, p)}</p>
     </div>`;
@@ -818,6 +953,15 @@
       cerrar: () => confirmarSalida(cerrarCapa),
       'rec-emoji': d => { b.emoji = d.valor; renderFormReceta(true); },
       'rec-unidad': d => { b.ingredientes[+d.i].unidad = d.valor; renderFormReceta(true); },
+      'rec-medida-nueva': d => {
+        const ing = b.ingredientes[+d.i];
+        const p = ing && Datos.producto(ing.productoId);
+        if (!p) return;
+        formMedida(null, C.familiaDe(p.unidad), m => {
+          if (m) ing.unidad = m.id;
+          renderFormReceta(true);
+        });
+      },
       'rec-quitar': d => { b.ingredientes.splice(+d.i, 1); renderFormReceta(true); },
       'rec-agregar': abrirPickerProducto,
       'rec-guardar': guardarFormReceta,
@@ -1163,6 +1307,12 @@
     'alternar-tema': alternarTema,
     respaldar,
     restaurar,
+    'medidas-abrir': abrirMedidas,
+    'instalar-app': () => {
+      if (!eventoInstalar) return;
+      eventoInstalar.prompt();
+      eventoInstalar.userChoice.then(() => { eventoInstalar = null; render(); }).catch(() => {});
+    },
     'borrador-seguir': continuarBorrador,
     'borrador-borrar': () => confirmar({
       titulo: '¿Descartar el borrador?',
@@ -1233,6 +1383,23 @@
     if ('serviceWorker' in navigator && location.protocol === 'https:') {
       navigator.serviceWorker.register('sw.js').catch(() => {});
     }
+
+    // Android ofrece instalarla como app nativa: mostramos el botón
+    window.addEventListener('beforeinstallprompt', e => {
+      e.preventDefault();
+      eventoInstalar = e;
+      if (vista === 'inicio') render();
+    });
+    window.addEventListener('appinstalled', () => {
+      eventoInstalar = null;
+      toast('¡App instalada! 📲');
+      render();
+    });
+
+    // Cinturón extra del borrador: guarda también al ocultar la app
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') persistirBorrador();
+    });
 
     $nav.addEventListener('click', e => {
       const b = e.target.closest('button[data-vista]');
