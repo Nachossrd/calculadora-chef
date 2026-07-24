@@ -55,9 +55,10 @@
   const unidadBase = familia => (familia === 'peso' ? 'g' : familia === 'volumen' ? 'ml' : 'un');
 
   function contenidoTexto(p) {
-    const sufijo = p.unidad === 'un'
-      ? (p.contenido === 1 ? 'unidad' : 'unidades')
-      : C.corto(p.unidad);
+    let sufijo;
+    if (p.unidad === 'un') sufijo = p.contenido === 1 ? 'unidad' : 'unidades';
+    else if (C.UNIDADES[p.unidad]) sufijo = C.corto(p.unidad);              // g, kg, ml, L: sin plural
+    else sufijo = plural(C.corto(p.unidad), p.contenido);                   // "2 docenas", "3 tazas"
     return C.numero(p.contenido) + ' ' + esc(sufijo);
   }
 
@@ -272,6 +273,8 @@
     const factor = C.parseCantidad(m.eqTexto);
     if (!nombre) return toast('Ponle nombre a la medida 🙂');
     if (!factor || factor <= 0) return toast('¿A cuánto equivale? Ej: 1 taza = 200');
+    const repetida = Datos.medidas().some(x => x.id !== m.id && normaliza(x.nombre) === normaliza(nombre));
+    if (repetida) return toast('Ya tienes una medida con ese nombre');
     const guardada = Datos.guardarMedida({ id: m.id, nombre, familia: m.familia, factor });
     cerrarCapa2();
     toast('Medida guardada ✓');
@@ -729,7 +732,8 @@
     if (!precio || !cont) return '💡 Escribe el precio y el contenido, y te muestro cuánto cuesta cada gramo.';
     const base = C.aBase(cont, b.unidad);
     const unitario = precio / base;
-    const nombreUnidad = b.unidad === 'un' ? 'unidad' : (C.familiaDe(b.unidad) === 'peso' ? 'gramo' : 'ml');
+    const familia = C.familiaDe(b.unidad);
+    const nombreUnidad = familia === 'peso' ? 'gramo' : familia === 'volumen' ? 'ml' : 'unidad';
     const precioTexto = unitario < 10 ? '$' + C.numero(unitario, 1) : C.pesos(unitario);
     return `💡 Cada ${esc(b.formato)} trae <b>${C.cantidadLegible(base, C.familiaDe(b.unidad))}</b> → cada ${nombreUnidad} te cuesta <b>${precioTexto}</b>.`;
   }
@@ -1222,10 +1226,13 @@
       'ev-dias': d => ajustarCampo('ev-dias', Number(d.delta), 1),
       'ev-cant-paso': d => {
         const actual = C.parseCantidad(b.sel.get(d.id)) || 0;
-        const nuevo = Math.max(1, Math.round(actual + Number(d.delta)));
-        b.sel.set(d.id, String(nuevo));
+        // Respeta las fracciones: 0,5 + 1 = 1,5 (no redondea antes de sumar)
+        let nuevo = Math.round((actual + Number(d.delta)) * 100) / 100;
+        if (nuevo < 0.5) nuevo = 0.5;
+        const texto = String(nuevo).replace('.', ',');
+        b.sel.set(d.id, texto);
         const inp = $capa.querySelector(`[data-campo="ev-cant"][data-id="${d.id}"]`);
-        if (inp) inp.value = nuevo;
+        if (inp) inp.value = texto;
         actualizarLinea(d.id);
       },
       'ev-guardar': guardarFormEvento,
@@ -1474,6 +1481,11 @@
     });
 
     render();
+
+    // Si el dato principal estaba corrupto y se rescató la copia interna, avisa
+    if (Datos.seRecupero()) {
+      toast('⚠️ Tus datos se recuperaron desde la copia interna. Haz un respaldo.');
+    }
   }
 
   init();

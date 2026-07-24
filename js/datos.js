@@ -8,6 +8,9 @@ const Datos = (() => {
   'use strict';
 
   const CLAVE = 'calculadora-chef-v1';
+  const COPIA = 'calculadora-chef-copia';
+  const COPIA_FECHA = 'calculadora-chef-copia-fecha';
+  let recuperado = false;   // ¿los datos se rescataron desde la copia interna?
 
   /* Ids de los antiguos datos de ejemplo: se retiran una sola vez
      de los navegadores que alcanzaron a recibirlos. */
@@ -58,12 +61,22 @@ const Datos = (() => {
 
   function cargar() {
     if (db) return db;
-    try {
-      const crudo = localStorage.getItem(CLAVE);
-      db = crudo ? JSON.parse(crudo) : vacia();
-    } catch (e) {
-      db = vacia();
+    let crudo = null;
+    try { crudo = localStorage.getItem(CLAVE); } catch (e) { /* bloqueado */ }
+    if (crudo) {
+      try {
+        db = JSON.parse(crudo);
+      } catch (e) {
+        // Dato principal corrupto: intenta rescatar la copia interna diaria
+        try {
+          db = JSON.parse(localStorage.getItem(COPIA));
+          recuperado = true;
+        } catch (e2) {
+          db = null;
+        }
+      }
     }
+    if (!db || typeof db !== 'object') db = vacia();
     if (!Array.isArray(db.productos)) db.productos = [];
     if (!Array.isArray(db.recetas)) db.recetas = [];
     if (!Array.isArray(db.eventos)) db.eventos = [];
@@ -88,11 +101,20 @@ const Datos = (() => {
 
   function guardar() {
     try {
-      localStorage.setItem(CLAVE, JSON.stringify(db));
+      const texto = JSON.stringify(db);
+      localStorage.setItem(CLAVE, texto);
+      // Copia interna: una foto de los datos por día, por si el principal se corrompe
+      const hoy = hoyISO();
+      if (localStorage.getItem(COPIA_FECHA) !== hoy) {
+        localStorage.setItem(COPIA, texto);
+        localStorage.setItem(COPIA_FECHA, hoy);
+      }
     } catch (e) {
       if (avisarFalla) avisarFalla();
     }
   }
+
+  const seRecupero = () => { cargar(); return recuperado; };
 
   /* Relee desde localStorage (otra pestaña pudo haber escrito) */
   function recargar() {
@@ -328,7 +350,7 @@ const Datos = (() => {
     recetas, receta, guardarReceta, eliminarReceta, eventosQueUsan,
     eventos, evento, guardarEvento, eliminarEvento, duplicarEvento,
     medidas, medida, guardarMedida, eliminarMedida, usosDeMedida,
-    hoyISO, recargar, siFallaGuardado,
+    hoyISO, recargar, siFallaGuardado, seRecupero,
     exportar, validarRespaldo, reemplazar,
   };
 })();
