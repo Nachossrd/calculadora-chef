@@ -28,6 +28,7 @@
   let capaInput = null;
   let capa2Acciones = {};
   let formTocado = false;        // ¿hay cambios sin guardar en el formulario abierto?
+  let formActivo = null;         // 'producto' | 'receta' | 'evento' — para el borrador automático
 
   const EMOJIS = ['🥪', '🍕', '🥤', '☕', '🍰', '🥗', '🍗', '🍤', '🧁', '🥟', '🌮', '🍹', '🍞', '🍩', '🍽️'];
   const FORMATO_EMOJI = {
@@ -159,6 +160,73 @@
     selector.click();
   }
 
+  /* ---------- borrador automático ----------
+     Todo lo que se escribe en un formulario se guarda al instante.
+     Si el teléfono se apaga o el navegador se recarga, al volver
+     aparece la opción de continuar donde quedó. */
+  const BORRADOR_CLAVE = 'calculadora-chef-borrador';
+
+  function persistirBorrador() {
+    let carga = null;
+    if (formActivo === 'producto' && bProducto) {
+      carga = { tipo: 'producto', datos: bProducto };
+    } else if (formActivo === 'receta' && bReceta) {
+      carga = { tipo: 'receta', datos: bReceta };
+    } else if (formActivo === 'evento' && bEvento) {
+      carga = { tipo: 'evento', datos: Object.assign({}, bEvento, { sel: Array.from(bEvento.sel.entries()) }) };
+    }
+    if (!carga) return;
+    try { localStorage.setItem(BORRADOR_CLAVE, JSON.stringify(carga)); } catch (e) { /* sin espacio */ }
+  }
+
+  function limpiarBorrador() {
+    try { localStorage.removeItem(BORRADOR_CLAVE); } catch (e) { /* nada */ }
+  }
+
+  function leerBorrador() {
+    try {
+      const crudo = localStorage.getItem(BORRADOR_CLAVE);
+      if (!crudo) return null;
+      const b = JSON.parse(crudo);
+      if (!b || typeof b !== 'object' || !b.tipo || !b.datos || typeof b.datos !== 'object') return null;
+      return b;
+    } catch (e) { return null; }
+  }
+
+  function nombreBorrador(b) {
+    const nombre = String(b.datos.nombre || '').trim();
+    const etiqueta = b.tipo === 'producto' ? 'el producto' : b.tipo === 'receta' ? 'la receta' : 'el evento';
+    return nombre ? `${etiqueta} "${nombre}"` : etiqueta + ' que estabas creando';
+  }
+
+  function continuarBorrador() {
+    const b = leerBorrador();
+    if (!b) return;
+    try {
+      formTocado = true;
+      if (b.tipo === 'producto') {
+        bProducto = Object.assign({ id: null, nombre: '', formato: 'paquete', precioTexto: '', contenidoTexto: '', unidad: 'g', proveedor: '', notas: '' }, b.datos);
+        productoAlGuardar = null;
+        formActivo = 'producto';
+        renderFormProducto();
+      } else if (b.tipo === 'receta') {
+        bReceta = Object.assign({ id: null, nombre: '', emoji: '🥪', porciones: 'porciones' }, b.datos);
+        if (!Array.isArray(bReceta.ingredientes)) bReceta.ingredientes = [];
+        formActivo = 'receta';
+        renderFormReceta();
+      } else if (b.tipo === 'evento') {
+        bEvento = Object.assign({ id: null, nombre: '', fecha: '', invitadosTexto: '30', diasTexto: '1' }, b.datos);
+        bEvento.sel = new Map(Array.isArray(b.datos.sel) ? b.datos.sel : []);
+        formActivo = 'evento';
+        renderFormEvento();
+      }
+    } catch (e) {
+      limpiarBorrador();
+      toast('El borrador estaba dañado 😕');
+      render();
+    }
+  }
+
   /* Pide confirmación antes de botar cambios sin guardar */
   function confirmarSalida(salir) {
     if (!formTocado) return salir();
@@ -190,6 +258,8 @@
     $capa.innerHTML = '';
     capaAcciones = {};
     capaInput = null;
+    formActivo = null;
+    limpiarBorrador();   // al guardar o descartar, el borrador ya cumplió
     document.body.classList.remove('sin-scroll');
   }
 
@@ -229,6 +299,17 @@
     const realizados = eventos.length - proximos.length;
 
     let html = cabeceraVista('¡Hola, Chef! 👩‍🍳', fechaLegible(hoy));
+
+    const borrador = leerBorrador();
+    if (borrador) {
+      html += `<div class="tarjeta" style="border-left:6px solid var(--acento);margin-bottom:14px">
+        <b>📝 Quedó ${esc(nombreBorrador(borrador))} sin terminar</b>
+        <div class="fila-botones" style="margin-top:12px">
+          <button class="boton-suave" data-accion="borrador-seguir">✍️ Continuar</button>
+          <button class="boton-peligro" data-accion="borrador-borrar">✕ Descartar</button>
+        </div>
+      </div>`;
+    }
 
     if (!productos.length && !recetas.length && !eventos.length) {
       html += `<div class="tarjeta guia">
@@ -480,7 +561,10 @@
   function formProducto(id, alGuardar) {
     const ex = id ? Datos.producto(id) : null;
     productoAlGuardar = alGuardar || null;
-    if (!alGuardar) formTocado = false;   // anidado desde una receta: conserva sus cambios pendientes
+    if (!alGuardar) {
+      formTocado = false;   // anidado desde una receta: conserva sus cambios pendientes
+      formActivo = 'producto';
+    }
     bProducto = ex ? {
       id: ex.id,
       nombre: ex.nombre,
@@ -635,6 +719,7 @@
       })),
     } : { id: null, nombre: '', emoji: '🥪', porciones: 'porciones', ingredientes: [] };
     formTocado = false;
+    formActivo = 'receta';
     renderFormReceta();
   }
 
@@ -877,6 +962,7 @@
       invitadosTexto: '30', diasTexto: '1', sel: new Map(),
     };
     formTocado = false;
+    formActivo = 'evento';
     renderFormEvento();
   }
 
@@ -1077,6 +1163,13 @@
     'alternar-tema': alternarTema,
     respaldar,
     restaurar,
+    'borrador-seguir': continuarBorrador,
+    'borrador-borrar': () => confirmar({
+      titulo: '¿Descartar el borrador?',
+      detalle: 'Se perderá lo que quedó a medias.',
+      textoOk: '✕ Sí, descartar',
+      alOk: () => { limpiarBorrador(); render(); toast('Borrador descartado'); },
+    }),
     'nuevo-producto': () => formProducto(null),
     'editar-producto': d => formProducto(d.id),
     'nueva-receta': () => formReceta(null),
@@ -1169,6 +1262,7 @@
         const accion = el.dataset.accion;
         if (accion !== 'cerrar' && accion !== 'picker-volver') formTocado = true;
         capaAcciones[accion](el.dataset, el);
+        persistirBorrador();
       }
     });
 
@@ -1177,6 +1271,7 @@
       if (el.dataset && el.dataset.campo && capaInput) {
         if (el.dataset.campo !== 'picker-buscar') formTocado = true;
         capaInput(el.dataset.campo, el);
+        persistirBorrador();
       }
     };
     $capa.addEventListener('input', manejarInputCapa);
