@@ -861,7 +861,7 @@
         <div class="chips">${C.FORMATOS.map(f =>
           `<button class="chip ${f === b.formato ? 'activo' : ''}" data-accion="prod-formato" data-valor="${f}">${f}</button>`).join('')}</div>
 
-        <label class="campo">¿Cuánto trae cada ${esc(b.formato)}? <small>(unidades, gramos, ml, tazas…)</small></label>
+        <label class="campo">¿Cuánto trae cada ${esc(b.formato)}? <small>(si no pesas, cuéntalo: 16 láminas = 16 un)</small></label>
         <input class="entrada" data-campo="contenido" inputmode="decimal" placeholder="250" value="${esc(b.contenidoTexto)}">
         <div class="chips" style="margin-top:8px">${C.unidadesElegibles().map(u =>
           `<button class="chip ${u === b.unidad ? 'activo' : ''}" data-accion="prod-unidad" data-valor="${u}">${esc(C.corto(u))}</button>`).join('')}
@@ -1022,7 +1022,7 @@
       <button class="quitar" data-accion="rec-quitar" data-i="${i}">✕ Quitar</button></div>
       <div class="fila-cantidad">
         <span class="por">1 porción lleva:</span>
-        <input class="entrada" data-campo="rec-cant" data-i="${i}" inputmode="decimal" placeholder="3" value="${esc(ing.cantidadTexto)}">
+        <input class="entrada" data-campo="rec-cant" data-i="${i}" inputmode="decimal" placeholder="3 o 1/2" value="${esc(ing.cantidadTexto)}">
       </div>
       <div class="chips" style="margin-top:8px">${unidades.map(u =>
         `<button class="chip ${u === ing.unidad ? 'activo' : ''}" data-accion="rec-unidad" data-i="${i}" data-valor="${u}">${esc(C.corto(u))}</button>`).join('')}
@@ -1062,7 +1062,7 @@
         <input class="entrada" data-campo="rec-porciones" value="${esc(b.porciones)}">
 
         <label class="campo">¿Qué lleva UNA porción?</label>
-        <p class="pista">🧑‍🍳 Piensa en <b>una sola porción</b> (1 pancito, 1 vaso, 1 plato): ¿cuánto usa de cada ingrediente? Ej: un pancito lleva <b>3 g</b> de jamón y <b>1</b> pan. Aquí NO calculas compras.</p>
+        <p class="pista">🧑‍🍳 Piensa en <b>una sola porción</b> (1 pancito, 1 vaso, 1 plato): ¿cuánto usa de cada ingrediente? Aquí NO calculas compras. Y sirven las fracciones: media lámina = escribe <b>1/2</b>.</p>
         ${filas}
         <button class="boton-suave" data-accion="rec-agregar">➕ Agregar ingrediente</button>
 
