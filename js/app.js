@@ -1021,7 +1021,7 @@
       <div class="ing-cab"><b>${esc(p.nombre)}</b>
       <button class="quitar" data-accion="rec-quitar" data-i="${i}">✕ Quitar</button></div>
       <div class="fila-cantidad">
-        <span class="por">Por porción:</span>
+        <span class="por">1 porción lleva:</span>
         <input class="entrada" data-campo="rec-cant" data-i="${i}" inputmode="decimal" placeholder="3" value="${esc(ing.cantidadTexto)}">
       </div>
       <div class="chips" style="margin-top:8px">${unidades.map(u =>
@@ -1061,11 +1061,13 @@
         <label class="campo">¿Cómo se llaman las porciones? <small>(pancitos, vasos, porciones…)</small></label>
         <input class="entrada" data-campo="rec-porciones" value="${esc(b.porciones)}">
 
-        <label class="campo">Ingredientes <small>(cantidad por porción)</small></label>
-        ${filas || '<p class="pista">Agrega los ingredientes y te diré cuánto rinde cada envase. 👇</p>'}
+        <label class="campo">¿Qué lleva UNA porción?</label>
+        <p class="pista">🧑‍🍳 Piensa en <b>una sola porción</b> (1 pancito, 1 vaso, 1 plato): ¿cuánto usa de cada ingrediente? Ej: un pancito lleva <b>3 g</b> de jamón y <b>1</b> pan. Aquí NO calculas compras.</p>
+        ${filas}
         <button class="boton-suave" data-accion="rec-agregar">➕ Agregar ingrediente</button>
 
         <p class="pista" id="costo-porcion">${lineaCostoPorcion()}</p>
+        <p class="pista">🛒 <b>¿Cuánto comprar y cuánto gastarás?</b> Se calcula solo en la pestaña <b>Eventos</b>: eliges esta receta, dices cuántas personas van, y la app te da la lista de compras completa.</p>
 
         ${b.id ? '<div class="separador"></div><button class="boton-peligro" data-accion="rec-eliminar">🗑️ Eliminar receta</button>' : ''}
       </div>
