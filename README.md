@@ -45,7 +45,13 @@ que agregar margen de ganancia, PDF, lista de compras imprimible o comparación
 de proveedores solo requiere sumar funciones sobre el objeto que devuelve
 `Calculo.presupuesto()`.
 
-**Importante al publicar cambios:** GitHub Pages cachea los archivos ~10
-minutos. Cada vez que se modifique un `.css` o `.js`, hay que subir el número
-de versión en las URLs de `index.html` (`?v=3` → `?v=4`) para que los
-navegadores descarguen la versión nueva.
+**Importante al publicar cambios:** cada vez que se modifique un `.css` o
+`.js`, hay que subir el número de versión en DOS lugares para que todos los
+navegadores (y el modo offline) reciban lo nuevo:
+
+1. Las URLs de `index.html`: `?v=4` → `?v=5`.
+2. En `sw.js`: la constante `CACHE` y la lista `ARCHIVOS`.
+
+La app es instalable (PWA): funciona sin internet y, agregada a la pantalla
+de inicio, el navegador no borra sus datos por falta de uso. Aun así, el
+respaldo a archivo (Inicio → Copia de seguridad) es la red de seguridad real.

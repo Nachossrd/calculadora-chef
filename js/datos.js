@@ -55,12 +55,22 @@ const Datos = (() => {
     return db;
   }
 
+  /* Aviso a la interfaz cuando un guardado falla (cuota llena, modo privado…) */
+  let avisarFalla = null;
+  const siFallaGuardado = fn => { avisarFalla = fn; };
+
   function guardar() {
     try {
       localStorage.setItem(CLAVE, JSON.stringify(db));
     } catch (e) {
-      /* almacenamiento lleno o bloqueado: la app sigue funcionando en memoria */
+      if (avisarFalla) avisarFalla();
     }
+  }
+
+  /* Relee desde localStorage (otra pestaña pudo haber escrito) */
+  function recargar() {
+    db = null;
+    return cargar();
   }
 
   /* ---------- CRUD genérico ---------- */
@@ -121,10 +131,117 @@ const Datos = (() => {
     return copia;
   }
 
+  /* =========================================================
+     RESPALDO Y RESTAURACIÓN
+     El archivo importado NUNCA se confía: cada campo se valida,
+     se recorta y los valores derivados se recalculan.
+     ========================================================= */
+  function exportar() {
+    const d = cargar();
+    return JSON.stringify({
+      app: 'calculadora-chef',
+      version: 1,
+      fecha: new Date().toISOString(),
+      productos: d.productos,
+      recetas: d.recetas,
+      eventos: d.eventos,
+    }, null, 2);
+  }
+
+  const soloTexto = (v, largo) => (typeof v === 'string' ? v.slice(0, largo || 200) : '');
+  const soloNumero = v => (typeof v === 'number' && isFinite(v) && v > 0 ? v : null);
+
+  function validarRespaldo(texto) {
+    if (typeof texto !== 'string' || !texto || texto.length > 2000000) return null;
+    let crudo;
+    try { crudo = JSON.parse(texto); } catch (e) { return null; }
+    if (!crudo || typeof crudo !== 'object'
+      || !Array.isArray(crudo.productos) || !Array.isArray(crudo.recetas) || !Array.isArray(crudo.eventos)) {
+      return null;
+    }
+    const UNIDADES_VALIDAS = { g: 1, kg: 1, ml: 1, l: 1, un: 1 };
+
+    const productos = crudo.productos.slice(0, 500).map(p => {
+      if (!p || typeof p !== 'object') return null;
+      const nombre = soloTexto(p.nombre).trim();
+      const precio = soloNumero(p.precio);
+      const contenido = soloNumero(p.contenido);
+      if (!nombre || !precio || !contenido) return null;
+      const unidad = UNIDADES_VALIDAS[p.unidad] ? p.unidad : 'un';
+      return {
+        id: soloTexto(p.id, 60) || uid(),
+        nombre,
+        formato: soloTexto(p.formato, 30) || 'paquete',
+        precio: Math.round(precio),
+        contenido,
+        unidad,
+        contenidoBase: Conversion.aBase(contenido, unidad),   // recalculado, no confiado
+        proveedor: soloTexto(p.proveedor),
+        notas: soloTexto(p.notas),
+      };
+    }).filter(Boolean);
+
+    const recetas = crudo.recetas.slice(0, 300).map(r => {
+      if (!r || typeof r !== 'object' || !Array.isArray(r.ingredientes)) return null;
+      const nombre = soloTexto(r.nombre).trim();
+      if (!nombre) return null;
+      const ingredientes = r.ingredientes.slice(0, 50).map(i => {
+        if (!i || typeof i !== 'object' || typeof i.productoId !== 'string') return null;
+        const cantidadBase = soloNumero(i.cantidadBase);
+        if (!cantidadBase) return null;
+        return {
+          productoId: i.productoId.slice(0, 60),
+          cantidadBase,
+          unidad: UNIDADES_VALIDAS[i.unidad] ? i.unidad : 'un',
+        };
+      }).filter(Boolean);
+      if (!ingredientes.length) return null;
+      return {
+        id: soloTexto(r.id, 60) || uid(),
+        nombre,
+        emoji: soloTexto(r.emoji, 8) || '🍽️',
+        porciones: soloTexto(r.porciones, 40) || 'porciones',
+        ingredientes,
+      };
+    }).filter(Boolean);
+
+    const eventos = crudo.eventos.slice(0, 300).map(e => {
+      if (!e || typeof e !== 'object') return null;
+      const nombre = soloTexto(e.nombre).trim();
+      const invitados = soloNumero(e.invitados);
+      if (!nombre || !invitados) return null;
+      const preparaciones = (Array.isArray(e.preparaciones) ? e.preparaciones : []).slice(0, 100).map(p => {
+        if (!p || typeof p !== 'object' || typeof p.recetaId !== 'string') return null;
+        const porPersona = soloNumero(p.porPersona);
+        if (!porPersona) return null;
+        return { recetaId: p.recetaId.slice(0, 60), porPersona };
+      }).filter(Boolean);
+      return {
+        id: soloTexto(e.id, 60) || uid(),
+        nombre,
+        fecha: (typeof e.fecha === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(e.fecha)) ? e.fecha : '',
+        invitados: Math.round(invitados),
+        dias: Math.max(1, Math.round(soloNumero(e.dias) || 1)),
+        preparaciones,
+      };
+    }).filter(Boolean);
+
+    return { productos, recetas, eventos };
+  }
+
+  function reemplazar(datos) {
+    const d = cargar();
+    d.productos = datos.productos;
+    d.recetas = datos.recetas;
+    d.eventos = datos.eventos;
+    guardar();
+  }
+
   return {
     productos, producto, guardarProducto, eliminarProducto, recetasQueUsan,
     recetas, receta, guardarReceta, eliminarReceta, eventosQueUsan,
     eventos, evento, guardarEvento, eliminarEvento, duplicarEvento,
-    hoyISO,
+    hoyISO, recargar, siFallaGuardado,
+    exportar, validarRespaldo, reemplazar,
   };
 })();

@@ -117,6 +117,48 @@
     </div>`;
   }
 
+  /* ---------- respaldo y restauración ---------- */
+  function respaldar() {
+    const blob = new Blob([Datos.exportar()], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const enlace = document.createElement('a');
+    enlace.href = url;
+    enlace.download = 'respaldo-calculadora-chef-' + Datos.hoyISO() + '.json';
+    document.body.appendChild(enlace);
+    enlace.click();
+    enlace.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    toast('Respaldo guardado 💾');
+  }
+
+  function restaurar() {
+    const selector = document.createElement('input');
+    selector.type = 'file';
+    selector.accept = '.json,application/json';
+    selector.onchange = () => {
+      const archivo = selector.files && selector.files[0];
+      if (!archivo) return;
+      const lector = new FileReader();
+      lector.onerror = () => toast('No pude leer el archivo 😕');
+      lector.onload = () => {
+        const datos = Datos.validarRespaldo(String(lector.result));
+        if (!datos) return toast('Ese archivo no es un respaldo válido 😕');
+        confirmar({
+          titulo: '¿Restaurar este respaldo?',
+          detalle: `Lo que hay ahora se reemplazará por: ${datos.productos.length} productos, ${datos.recetas.length} recetas y ${datos.eventos.length} eventos.`,
+          textoOk: '📥 Sí, restaurar',
+          alOk: () => {
+            Datos.reemplazar(datos);
+            render();
+            toast('¡Datos restaurados! ✅');
+          },
+        });
+      };
+      lector.readAsText(archivo);
+    };
+    selector.click();
+  }
+
   /* Pide confirmación antes de botar cambios sin guardar */
   function confirmarSalida(salir) {
     if (!formTocado) return salir();
@@ -196,7 +238,9 @@
         <div class="paso-guia"><span class="numero">3</span><span>Arma tu <b>evento</b> y la app calcula cuánto comprar y cuánto gastarás.</span></div>
       </div>
       <div class="separador"></div>
-      <button class="boton-principal" data-accion="nuevo-producto">🧺 Agregar mi primer producto</button>`;
+      <button class="boton-principal" data-accion="nuevo-producto">🧺 Agregar mi primer producto</button>
+      <div class="separador" style="height:10px"></div>
+      <button class="boton-suave" data-accion="restaurar">📥 Restaurar un respaldo</button>`;
       return html;
     }
 
@@ -225,7 +269,14 @@
     <div class="fila-botones">
       <button class="boton-suave" data-accion="nuevo-producto">🧺 Producto</button>
       <button class="boton-suave" data-accion="nueva-receta">🥪 Receta</button>
-    </div>`;
+    </div>
+
+    <div class="subtitulo">Copia de seguridad</div>
+    <div class="fila-botones">
+      <button class="boton-suave" data-accion="respaldar">💾 Respaldar</button>
+      <button class="boton-suave" data-accion="restaurar">📥 Restaurar</button>
+    </div>
+    <p class="sobra" style="margin-top:8px">Guarda un archivo con todos tus datos. Sirve para no perderlos o copiarlos a otro teléfono.</p>`;
     return html;
   }
 
@@ -1024,6 +1075,8 @@
   const acciones = {
     ir: d => { vista = d.destino; eventoAbierto = null; render(); },
     'alternar-tema': alternarTema,
+    respaldar,
+    restaurar,
     'nuevo-producto': () => formProducto(null),
     'editar-producto': d => formProducto(d.id),
     'nueva-receta': () => formReceta(null),
@@ -1066,6 +1119,27 @@
 
   function init() {
     aplicarTema(temaInicial());
+
+    // Aviso visible si el navegador rechaza un guardado (cuota, modo privado…)
+    Datos.siFallaGuardado(() => toast('⚠️ No se pudo guardar. Haz un respaldo desde Inicio.'));
+
+    // Pide al navegador que no borre los datos por falta de uso
+    if (navigator.storage && navigator.storage.persist) {
+      navigator.storage.persist().catch(() => {});
+    }
+
+    // Si otra pestaña de la app escribe, esta se actualiza en vez de pisarla
+    window.addEventListener('storage', e => {
+      if (e.key === 'calculadora-chef-v1') {
+        Datos.recargar();
+        render();
+      }
+    });
+
+    // Modo offline e instalación como app
+    if ('serviceWorker' in navigator && location.protocol === 'https:') {
+      navigator.serviceWorker.register('sw.js').catch(() => {});
+    }
 
     $nav.addEventListener('click', e => {
       const b = e.target.closest('button[data-vista]');
