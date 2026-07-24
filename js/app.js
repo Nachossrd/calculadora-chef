@@ -76,6 +76,17 @@
     return texto.charAt(0).toUpperCase() + texto.slice(1);
   }
 
+  /* Hora actual en Santiago de Chile (con horario de verano automático) */
+  function horaSantiago() {
+    try {
+      return new Date().toLocaleTimeString('es-CL', {
+        timeZone: 'America/Santiago', hour: '2-digit', minute: '2-digit', hour12: false,
+      });
+    } catch (e) {
+      return new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hour12: false });
+    }
+  }
+
   let toastTimer = null;
   function toast(msg) {
     $toast.textContent = msg;
@@ -423,7 +434,8 @@
     const proximos = eventos.filter(e => e.fecha && e.fecha >= hoy).sort((a, b) => a.fecha.localeCompare(b.fecha));
     const realizados = eventos.length - proximos.length;
 
-    let html = cabeceraVista('¡Hola, Chef! 👩‍🍳', fechaLegible(hoy));
+    let html = cabeceraVista('¡Hola, Chef! 👩‍🍳',
+      `${fechaLegible(hoy)} · 🕐 <span id="reloj">${horaSantiago()}</span> hrs`);
 
     if (eventoInstalar) {
       html += `<button class="boton-principal" data-accion="instalar-app" style="margin-bottom:14px">📲 Instalar la app en este teléfono</button>`;
@@ -1400,6 +1412,18 @@
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'hidden') persistirBorrador();
     });
+
+    // Reloj de Santiago: se actualiza solo, y al cambiar el día refresca la fecha
+    let fechaReloj = Datos.hoyISO();
+    setInterval(() => {
+      const reloj = document.getElementById('reloj');
+      if (reloj) reloj.textContent = horaSantiago();
+      const hoy = Datos.hoyISO();
+      if (hoy !== fechaReloj) {
+        fechaReloj = hoy;
+        if (vista === 'inicio' && !$capa.classList.contains('visible')) render();
+      }
+    }, 30000);
 
     $nav.addEventListener('click', e => {
       const b = e.target.closest('button[data-vista]');
