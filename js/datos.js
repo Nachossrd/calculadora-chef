@@ -23,8 +23,20 @@ const Datos = (() => {
     return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
   }
 
+  /* Fecha de "hoy" según el reloj de Santiago de Chile,
+     aunque el teléfono esté configurado en otra zona horaria */
   function hoyISO(diasExtra = 0) {
-    const f = new Date();
+    let f;
+    try {
+      // en-CA entrega directamente AAAA-MM-DD
+      const texto = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Santiago', year: 'numeric', month: '2-digit', day: '2-digit',
+      }).format(new Date());
+      const [a, m, d] = texto.split('-').map(Number);
+      f = new Date(a, m - 1, d);
+    } catch (e) {
+      f = new Date();
+    }
     f.setDate(f.getDate() + diasExtra);
     const p = n => String(n).padStart(2, '0');
     return f.getFullYear() + '-' + p(f.getMonth() + 1) + '-' + p(f.getDate());
