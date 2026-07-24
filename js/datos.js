@@ -1,13 +1,22 @@
 /* =========================================================
    PERSISTENCIA
    Guarda productos, recetas y eventos en el navegador
-   (localStorage). La primera vez carga ejemplos para que
-   la app no parta vacía.
+   (localStorage). La app parte vacía: la usuaria registra
+   sus propios productos, recetas y eventos.
    ========================================================= */
 const Datos = (() => {
   'use strict';
 
   const CLAVE = 'calculadora-chef-v1';
+
+  /* Ids de los antiguos datos de ejemplo: se retiran una sola vez
+     de los navegadores que alcanzaron a recibirlos. */
+  const IDS_EJEMPLO = [
+    'p-pan', 'p-jamon', 'p-queso', 'p-mayo', 'p-bebida', 'p-cafe', 'p-torta',
+    'r-pancito', 'r-bebida', 'r-cafe', 'r-torta',
+    'e-sofia',
+  ];
+
   let db = null;
 
   function uid() {
@@ -22,7 +31,7 @@ const Datos = (() => {
   }
 
   function vacia() {
-    return { productos: [], recetas: [], eventos: [], sembrada: false, mostrarBienvenida: false };
+    return { productos: [], recetas: [], eventos: [], ejemploRetirado: true };
   }
 
   function cargar() {
@@ -36,8 +45,12 @@ const Datos = (() => {
     if (!Array.isArray(db.productos)) db.productos = [];
     if (!Array.isArray(db.recetas)) db.recetas = [];
     if (!Array.isArray(db.eventos)) db.eventos = [];
-    if (!db.sembrada && !db.productos.length && !db.recetas.length && !db.eventos.length) {
-      sembrar();
+    if (!db.ejemploRetirado) {
+      db.productos = db.productos.filter(p => !IDS_EJEMPLO.includes(p.id));
+      db.recetas = db.recetas.filter(r => !IDS_EJEMPLO.includes(r.id));
+      db.eventos = db.eventos.filter(e => !IDS_EJEMPLO.includes(e.id));
+      db.ejemploRetirado = true;
+      guardar();
     }
     return db;
   }
@@ -108,67 +121,10 @@ const Datos = (() => {
     return copia;
   }
 
-  /* ---------- Bienvenida ---------- */
-  const mostrarBienvenida = () => !!cargar().mostrarBienvenida;
-  function cerrarBienvenida() {
-    cargar().mostrarBienvenida = false;
-    guardar();
-  }
-
-  /* ---------- Datos de ejemplo ---------- */
-  function sembrar() {
-    db.productos = [
-      { id: 'p-pan',    nombre: 'Pan cocktail',      formato: 'bolsa',   precio: 2800,  contenido: 50,  unidad: 'un', contenidoBase: 50,   proveedor: 'Amasandería', notas: '' },
-      { id: 'p-jamon',  nombre: 'Jamón Colonial',    formato: 'paquete', precio: 6200,  contenido: 250, unidad: 'g',  contenidoBase: 250,  proveedor: 'Jumbo',       notas: '' },
-      { id: 'p-queso',  nombre: 'Queso laminado',    formato: 'paquete', precio: 5200,  contenido: 500, unidad: 'g',  contenidoBase: 500,  proveedor: 'Jumbo',       notas: '' },
-      { id: 'p-mayo',   nombre: 'Mayonesa',          formato: 'pote',    precio: 2590,  contenido: 750, unidad: 'g',  contenidoBase: 750,  proveedor: 'Líder',       notas: '' },
-      { id: 'p-bebida', nombre: 'Bebida 3 litros',   formato: 'botella', precio: 2590,  contenido: 3,   unidad: 'l',  contenidoBase: 3000, proveedor: 'Líder',       notas: '' },
-      { id: 'p-cafe',   nombre: 'Café instantáneo',  formato: 'frasco',  precio: 5990,  contenido: 170, unidad: 'g',  contenidoBase: 170,  proveedor: 'Jumbo',       notas: '' },
-      { id: 'p-torta',  nombre: 'Torta de mil hojas', formato: 'unidad', precio: 28000, contenido: 30,  unidad: 'un', contenidoBase: 30,   proveedor: 'Pastelería',  notas: 'Cada torta rinde 30 porciones' },
-    ];
-    db.recetas = [
-      {
-        id: 'r-pancito', nombre: 'Pancito cocktail jamón queso', emoji: '🥪', porciones: 'pancitos',
-        ingredientes: [
-          { productoId: 'p-pan',   cantidadBase: 1, unidad: 'un' },
-          { productoId: 'p-jamon', cantidadBase: 3, unidad: 'g' },
-          { productoId: 'p-queso', cantidadBase: 4, unidad: 'g' },
-          { productoId: 'p-mayo',  cantidadBase: 2, unidad: 'g' },
-        ],
-      },
-      {
-        id: 'r-bebida', nombre: 'Vaso de bebida', emoji: '🥤', porciones: 'vasos',
-        ingredientes: [{ productoId: 'p-bebida', cantidadBase: 180, unidad: 'ml' }],
-      },
-      {
-        id: 'r-cafe', nombre: 'Taza de café', emoji: '☕', porciones: 'tazas',
-        ingredientes: [{ productoId: 'p-cafe', cantidadBase: 2, unidad: 'g' }],
-      },
-      {
-        id: 'r-torta', nombre: 'Porción de torta', emoji: '🍰', porciones: 'porciones',
-        ingredientes: [{ productoId: 'p-torta', cantidadBase: 1, unidad: 'un' }],
-      },
-    ];
-    db.eventos = [
-      {
-        id: 'e-sofia', nombre: 'Cumpleaños Sofía', fecha: hoyISO(16), invitados: 45, dias: 2,
-        preparaciones: [
-          { recetaId: 'r-pancito', porPersona: 6 },
-          { recetaId: 'r-bebida',  porPersona: 2 },
-          { recetaId: 'r-cafe',    porPersona: 1 },
-          { recetaId: 'r-torta',   porPersona: 1 },
-        ],
-      },
-    ];
-    db.sembrada = true;
-    db.mostrarBienvenida = true;
-    guardar();
-  }
-
   return {
     productos, producto, guardarProducto, eliminarProducto, recetasQueUsan,
     recetas, receta, guardarReceta, eliminarReceta, eventosQueUsan,
     eventos, evento, guardarEvento, eliminarEvento, duplicarEvento,
-    mostrarBienvenida, cerrarBienvenida, hoyISO,
+    hoyISO,
   };
 })();

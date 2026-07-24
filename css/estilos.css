@@ -1,9 +1,10 @@
 /* =========================================================
    CALCULADORA DE LA CHEF · estilos
    Cálido, grande, simple. Pensado para usar con una mano
-   mientras se cocina.
+   mientras se cocina. Tema claro y oscuro.
    ========================================================= */
 :root {
+  color-scheme: light;
   --fondo: #FDF6EE;
   --tarjeta: #FFFFFF;
   --tinta: #3E322A;
@@ -13,12 +14,42 @@
   --acento-suave: #FBE8DC;
   --verde: #3E8E5F;
   --verde-suave: #E4F2E9;
+  --verde-tinta: #2A5C40;
   --rojo: #CE4A3B;
   --rojo-suave: #FBE5E1;
   --miel: #FFF3D9;
+  --miel-tinta: #6B5320;
+  --miel-tinta-fuerte: #4E3C0F;
   --borde: #F0E3D3;
+  --placeholder: #C9BBAB;
   --sombra: 0 4px 18px rgba(122, 85, 48, 0.10);
+  --toast-fondo: #3E322A;
+  --toast-tinta: #FFFFFF;
   --radio: 20px;
+}
+
+:root[data-tema="oscuro"] {
+  color-scheme: dark;
+  --fondo: #1F1912;
+  --tarjeta: #2B231B;
+  --tinta: #F2E9DE;
+  --tinta-suave: #A89683;
+  --acento: #E97940;
+  --acento-oscuro: #F0925F;
+  --acento-suave: #3D2A1C;
+  --verde: #3E8E5F;
+  --verde-suave: #22352A;
+  --verde-tinta: #9BD8B6;
+  --rojo: #E4705E;
+  --rojo-suave: #3E2320;
+  --miel: #38301C;
+  --miel-tinta: #E3C889;
+  --miel-tinta-fuerte: #F1DCA8;
+  --borde: #3C332A;
+  --placeholder: #6E6152;
+  --sombra: 0 4px 18px rgba(0, 0, 0, 0.35);
+  --toast-fondo: #F2E9DE;
+  --toast-tinta: #24201B;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -31,6 +62,7 @@ body {
   color: var(--tinta);
   font-size: 17px;
   line-height: 1.45;
+  transition: background 0.2s ease, color 0.2s ease;
 }
 
 body.sin-scroll { overflow: hidden; }
@@ -110,6 +142,7 @@ input, select, textarea { font: inherit; color: inherit; }
 .fila-card .centro small { color: var(--tinta-suave); font-size: 15px; display: block; margin-top: 1px; }
 .fila-card .derecha { text-align: right; flex-shrink: 0; }
 .fila-card .derecha b { font-size: 18px; color: var(--verde); display: block; }
+:root[data-tema="oscuro"] .fila-card .derecha b { color: var(--verde-tinta); }
 .fila-card .derecha small { color: var(--tinta-suave); font-size: 14px; }
 
 /* ---------- botones ---------- */
@@ -128,7 +161,7 @@ input, select, textarea { font: inherit; color: inherit; }
   box-shadow: 0 6px 16px rgba(228, 107, 54, 0.35);
   transition: transform 0.08s ease;
 }
-.boton-principal:active { transform: scale(0.97); background: var(--acento-oscuro); }
+.boton-principal:active { transform: scale(0.97); }
 
 .boton-suave {
   display: flex;
@@ -163,6 +196,19 @@ input, select, textarea { font: inherit; color: inherit; }
 .fila-botones { display: flex; gap: 10px; }
 .fila-botones > * { flex: 1; }
 
+/* botón de tema (claro / oscuro) */
+.boton-tema {
+  width: 50px;
+  height: 50px;
+  border-radius: 16px;
+  background: var(--tarjeta);
+  border: 2px solid var(--borde);
+  font-size: 24px;
+  flex-shrink: 0;
+  box-shadow: var(--sombra);
+}
+.boton-tema:active { transform: scale(0.94); }
+
 /* ---------- formularios ---------- */
 label.campo {
   display: block;
@@ -179,16 +225,16 @@ input.entrada, textarea.entrada {
   font-size: 19px;
   border: 2px solid var(--borde);
   border-radius: 16px;
-  background: #fff;
+  background: var(--tarjeta);
   outline: none;
 }
 input.entrada:focus, textarea.entrada:focus { border-color: var(--acento); }
-input.entrada::placeholder { color: #C9BBAB; }
+input.entrada::placeholder { color: var(--placeholder); }
 
 .campo-precio {
   display: flex;
   align-items: center;
-  background: #fff;
+  background: var(--tarjeta);
   border: 2px solid var(--borde);
   border-radius: 16px;
   overflow: hidden;
@@ -208,6 +254,7 @@ input.entrada::placeholder { color: #C9BBAB; }
   font-size: 19px;
   padding: 14px 16px 14px 6px;
   min-width: 0;
+  background: none;
 }
 
 .fila-cantidad { display: flex; gap: 10px; align-items: center; }
@@ -219,7 +266,7 @@ input.entrada::placeholder { color: #C9BBAB; }
   min-height: 46px;
   padding: 8px 16px;
   border-radius: 14px;
-  background: #fff;
+  background: var(--tarjeta);
   border: 2px solid var(--borde);
   font-size: 16px;
   font-weight: 700;
@@ -239,16 +286,16 @@ input.entrada::placeholder { color: #C9BBAB; }
   padding: 10px 14px;
   font-size: 15.5px;
   margin-top: 10px;
-  color: #6B5320;
+  color: var(--miel-tinta);
 }
-.pista b { color: #4E3C0F; }
+.pista b { color: var(--miel-tinta-fuerte); }
 
 /* ---------- buscador ---------- */
 .buscador {
   display: flex;
   align-items: center;
   gap: 10px;
-  background: #fff;
+  background: var(--tarjeta);
   border: 2px solid var(--borde);
   border-radius: 16px;
   padding: 0 14px;
@@ -267,7 +314,14 @@ input.entrada::placeholder { color: #C9BBAB; }
 
 /* ---------- dashboard ---------- */
 .saludo { font-size: 27px; font-weight: 800; letter-spacing: -0.3px; }
-.saludo-sub { color: var(--tinta-suave); margin: 2px 0 18px; }
+.saludo-sub { color: var(--tinta-suave); margin-top: 2px; }
+.fila-saludo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.fila-saludo > div { flex: 1; min-width: 0; }
 
 .mosaico { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .azulejo {
@@ -281,18 +335,27 @@ input.entrada::placeholder { color: #C9BBAB; }
 .azulejo .eti { color: var(--tinta-suave); font-size: 15px; font-weight: 700; }
 .azulejo .ico { font-size: 24px; display: block; margin-bottom: 6px; }
 
-.banner {
-  background: var(--verde-suave);
-  border-radius: var(--radio);
-  padding: 14px 16px;
-  margin-bottom: 16px;
+/* guía de primeros pasos */
+.guia h2 { font-size: 20px; font-weight: 800; margin-bottom: 10px; }
+.paso-guia {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   align-items: flex-start;
-  color: #2A5C40;
-  font-size: 15.5px;
+  margin: 10px 0;
+  font-size: 16.5px;
 }
-.banner button { font-size: 20px; font-weight: 800; color: #2A5C40; padding: 0 4px; }
+.paso-guia .numero {
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  background: var(--acento-suave);
+  color: var(--acento-oscuro);
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
 
 /* tarjeta de evento destacada */
 .evento-prox { border-left: 6px solid var(--acento); }
@@ -333,13 +396,12 @@ input.entrada::placeholder { color: #C9BBAB; }
 }
 .dato-mini small { display: block; color: var(--tinta-suave); font-size: 13.5px; font-weight: 700; }
 .dato-mini b { font-size: 17px; }
-.dato-mini.verde b { color: var(--verde); }
 
 .sobra { color: var(--tinta-suave); font-size: 14.5px; margin-top: 8px; }
 
 /* ---------- ingredientes en receta ---------- */
 .ing {
-  background: #fff;
+  background: var(--tarjeta);
   border-radius: 16px;
   border: 2px solid var(--borde);
   padding: 14px;
@@ -360,7 +422,7 @@ input.entrada::placeholder { color: #C9BBAB; }
 
 /* ---------- selección de recetas en evento ---------- */
 .sel-receta {
-  background: #fff;
+  background: var(--tarjeta);
   border: 2px solid var(--borde);
   border-radius: 16px;
   margin-bottom: 10px;
@@ -416,7 +478,7 @@ input.entrada::placeholder { color: #C9BBAB; }
   border: 2px solid var(--borde);
   border-radius: 16px;
   outline: none;
-  background: #fff;
+  background: var(--tarjeta);
 }
 .stepper input:focus { border-color: var(--acento); }
 
@@ -441,7 +503,7 @@ input.entrada::placeholder { color: #C9BBAB; }
   max-width: 640px;
   margin: 0 auto;
   display: flex;
-  background: #fff;
+  background: var(--tarjeta);
   border-top: 1px solid var(--borde);
   padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
   z-index: 40;
@@ -466,7 +528,7 @@ input.entrada::placeholder { color: #C9BBAB; }
 #capa.visible, #capa2.visible { display: block; }
 #capa2 { z-index: 60; }
 
-.fondo-capa { position: absolute; inset: 0; background: rgba(62, 50, 42, 0.5); }
+.fondo-capa { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.5); }
 
 .panel {
   position: absolute;
@@ -495,7 +557,7 @@ input.entrada::placeholder { color: #C9BBAB; }
   width: 46px;
   height: 46px;
   border-radius: 14px;
-  background: #fff;
+  background: var(--tarjeta);
   border: 2px solid var(--borde);
   font-size: 22px;
   font-weight: 800;
@@ -518,10 +580,10 @@ input.entrada::placeholder { color: #C9BBAB; }
   top: 50%;
   transform: translate(-50%, -50%);
   width: min(92%, 420px);
-  background: #fff;
+  background: var(--tarjeta);
   border-radius: 24px;
   padding: 22px 20px;
-  box-shadow: 0 20px 50px rgba(60, 40, 20, 0.3);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
   animation: aparecer 0.18s ease;
 }
 @keyframes aparecer {
@@ -537,8 +599,8 @@ input.entrada::placeholder { color: #C9BBAB; }
   left: 50%;
   bottom: 104px;
   transform: translateX(-50%) translateY(16px);
-  background: #3E322A;
-  color: #fff;
+  background: var(--toast-fondo);
+  color: var(--toast-tinta);
   font-size: 16px;
   font-weight: 700;
   padding: 12px 22px;
