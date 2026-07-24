@@ -7,11 +7,18 @@
 const Calculo = (() => {
   'use strict';
 
+  /* Redondeos con tolerancia: los decimales del computador nunca deben
+     cambiar una compra (0,2 × 45 es 9 exacto, pero el computador entrega
+     9.000000000000002 y un techo ingenuo lo convertiría en 10). */
+  const EPS = 1e-9;
+  const techo = x => Math.ceil(x - EPS);
+  const piso = x => Math.floor(x + EPS);
+
   /* ¿Cuántas porciones salen de UN paquete/envase del producto?
      Ej: paquete de 250 g, cada pancito usa 3 g → 83 pancitos */
   function rendimiento(producto, cantidadBasePorPorcion) {
     if (!producto || !producto.contenidoBase || !cantidadBasePorPorcion) return null;
-    return Math.floor(producto.contenidoBase / cantidadBasePorPorcion);
+    return piso(producto.contenidoBase / cantidadBasePorPorcion);
   }
 
   /* Precio de 1 g / 1 ml / 1 unidad del producto */
@@ -70,7 +77,7 @@ const Calculo = (() => {
       const receta = obtenerReceta(item.recetaId);
       if (!receta) continue;
 
-      const porciones = Math.ceil(invitados * (item.porPersona || 0));
+      const porciones = techo(invitados * (item.porPersona || 0));
       const costoUna = costoPorcion(receta, obtenerProducto);
       const costoExacto = costoUna * porciones;
       costoExactoTotal += costoExacto;
@@ -98,7 +105,7 @@ const Calculo = (() => {
     for (const [productoId, base] of necesidades) {
       const producto = obtenerProducto(productoId);
       if (!producto || !producto.contenidoBase) continue;
-      const paquetes = Math.ceil(base / producto.contenidoBase);   // compra mínima: siempre hacia arriba
+      const paquetes = techo(base / producto.contenidoBase);   // compra mínima: siempre hacia arriba
       const costo = paquetes * producto.precio;
       const sobra = paquetes * producto.contenidoBase - base;
       compras.push({ producto, necesarioBase: base, paquetes, costo, sobraBase: sobra });
@@ -120,5 +127,5 @@ const Calculo = (() => {
     };
   }
 
-  return { rendimiento, precioPorBase, costoPorcion, rendimientos, faltanProductos, presupuesto };
+  return { rendimiento, precioPorBase, costoPorcion, rendimientos, faltanProductos, presupuesto, techo, piso };
 })();

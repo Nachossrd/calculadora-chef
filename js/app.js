@@ -1224,7 +1224,7 @@
     const inv = C.parseCantidad(b.invitadosTexto);
     const cant = C.parseCantidad(b.sel.get(r.id));
     if (!inv || !cant) return '💡 Escribe cuántos por persona.';
-    const total = Math.ceil(inv * cant);
+    const total = Calculo.techo(inv * cant);
     return `💡 ${C.numero(inv, 0)} invitados × ${esc(String(b.sel.get(r.id)))} = <b>${C.numero(total, 0)} ${esc(r.porciones || 'porciones')}</b>`;
   }
 

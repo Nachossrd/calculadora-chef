@@ -26,9 +26,128 @@
       } catch (e) { /* sin almacenamiento */ }
     })();
   </script>
-  <link rel="stylesheet" href="css/estilos.css?v=9">
+  <link rel="stylesheet" href="css/estilos.css?v=10">
+  <style>
+    /* Presentación de entrada: red de grafos 3D + By Nachoss */
+    #presentacion {
+      position: fixed; inset: 0; z-index: 100;
+      background: #14100C;
+      display: flex; align-items: center; justify-content: center;
+      transition: opacity 0.45s ease;
+    }
+    #presentacion.oculto { opacity: 0; pointer-events: none; }
+    #grafo3d { position: absolute; inset: 0; width: 100%; height: 100%; }
+    .presentacion-texto { position: relative; text-align: center; }
+    .presentacion-titulo {
+      font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+      font-size: 36px; font-weight: 800; letter-spacing: 0.5px; color: #F2E9DE;
+      text-shadow: 0 0 26px rgba(233, 121, 64, 0.6);
+    }
+    .presentacion-sub {
+      font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+      margin-top: 8px; font-size: 15px; font-weight: 700; color: #A89683;
+    }
+  </style>
 </head>
 <body>
+
+  <div id="presentacion">
+    <canvas id="grafo3d"></canvas>
+    <div class="presentacion-texto">
+      <div class="presentacion-titulo">By Nachoss</div>
+      <div class="presentacion-sub">Calculadora de la Chef 🍳</div>
+    </div>
+  </div>
+  <script>
+    /* Red de grafos 3D durante 3 segundos. Pase lo que pase,
+       la capa se retira sola y jamás bloquea la app. */
+    (function () {
+      var capa = document.getElementById('presentacion');
+      var activo = false;
+      try {
+        var lienzo = document.getElementById('grafo3d');
+        var ctx = lienzo.getContext('2d');
+        var dpr = Math.min(window.devicePixelRatio || 1, 2);
+        var W = 0, H = 0;
+        function medir() {
+          W = lienzo.clientWidth; H = lienzo.clientHeight;
+          lienzo.width = W * dpr; lienzo.height = H * dpr;
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        }
+        medir();
+        window.addEventListener('resize', medir);
+
+        // Nodos repartidos dentro de una esfera
+        var N = 44, nodos = [], i, j;
+        for (i = 0; i < N; i++) {
+          var u = Math.random() * 2 - 1;
+          var t = Math.random() * Math.PI * 2;
+          var r = Math.cbrt(Math.random());
+          var s = Math.sqrt(1 - u * u);
+          nodos.push({ x: r * s * Math.cos(t), y: r * u, z: r * s * Math.sin(t) });
+        }
+        // Aristas hacia los 3 vecinos más cercanos
+        var aristas = [], vistas = {};
+        for (i = 0; i < N; i++) {
+          var cerca = [];
+          for (j = 0; j < N; j++) {
+            if (j === i) continue;
+            var dx = nodos[i].x - nodos[j].x, dy = nodos[i].y - nodos[j].y, dz = nodos[i].z - nodos[j].z;
+            cerca.push([dx * dx + dy * dy + dz * dz, j]);
+          }
+          cerca.sort(function (a, b) { return a[0] - b[0]; });
+          for (var k = 0; k < 3; k++) {
+            var a2 = Math.min(i, cerca[k][1]), b2 = Math.max(i, cerca[k][1]);
+            if (!vistas[a2 + '-' + b2]) { vistas[a2 + '-' + b2] = 1; aristas.push([a2, b2]); }
+          }
+        }
+
+        var quieto = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+        var inicio = performance.now();
+        activo = true;
+
+        function dibujar(t) {
+          if (!activo) return;
+          var ang = quieto ? 0.7 : (t - inicio) * 0.0005 + 0.7;
+          var cab = quieto ? 0.35 : Math.sin((t - inicio) * 0.0003) * 0.25 + 0.35;
+          ctx.clearRect(0, 0, W, H);
+          var escala = Math.min(W, H) * 0.36, cx = W / 2, cy = H / 2, pers = 3.2;
+          var py = [];
+          for (var i2 = 0; i2 < N; i2++) {
+            var n = nodos[i2];
+            var x1 = n.x * Math.cos(ang) + n.z * Math.sin(ang);
+            var z1 = -n.x * Math.sin(ang) + n.z * Math.cos(ang);
+            var y1 = n.y * Math.cos(cab) - z1 * Math.sin(cab);
+            var z2 = n.y * Math.sin(cab) + z1 * Math.cos(cab);
+            var f = pers / (pers - z2);
+            py.push({ x: cx + x1 * escala * f, y: cy + y1 * escala * f, p: f });
+          }
+          ctx.lineWidth = 1;
+          for (var a3 = 0; a3 < aristas.length; a3++) {
+            var p1 = py[aristas[a3][0]], p2 = py[aristas[a3][1]];
+            var al = Math.max(0.07, Math.min(0.55, p1.p + p2.p - 1.75));
+            ctx.strokeStyle = 'rgba(233,121,64,' + al.toFixed(3) + ')';
+            ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+          }
+          for (var i3 = 0; i3 < N; i3++) {
+            var p = py[i3];
+            ctx.fillStyle = i3 % 5 === 0 ? 'rgba(62,142,95,0.95)' : 'rgba(242,233,222,0.85)';
+            ctx.beginPath(); ctx.arc(p.x, p.y, 2.2 * p.p * p.p, 0, 6.2832); ctx.fill();
+          }
+          if (!quieto) requestAnimationFrame(dibujar);
+        }
+        requestAnimationFrame(dibujar);
+      } catch (e) { /* el dibujo nunca debe impedir entrar */ }
+
+      setTimeout(function () {
+        capa.classList.add('oculto');
+        setTimeout(function () {
+          activo = false;
+          if (capa.parentNode) capa.parentNode.removeChild(capa);
+        }, 500);
+      }, 3000);
+    })();
+  </script>
 
   <main id="app"></main>
 
@@ -43,9 +162,9 @@
   <div id="capa2"></div>
   <div id="toast"></div>
 
-  <script src="js/conversion.js?v=9"></script>
-  <script src="js/datos.js?v=9"></script>
-  <script src="js/calculo.js?v=9"></script>
-  <script src="js/app.js?v=9"></script>
+  <script src="js/conversion.js?v=10"></script>
+  <script src="js/datos.js?v=10"></script>
+  <script src="js/calculo.js?v=10"></script>
+  <script src="js/app.js?v=10"></script>
 </body>
 </html>
