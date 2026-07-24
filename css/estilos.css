@@ -576,6 +576,14 @@ input.entrada::placeholder { color: var(--placeholder); }
   background: var(--fondo);
 }
 
+.estado-guardado {
+  text-align: center;
+  color: var(--tinta-suave);
+  font-size: 14.5px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
 /* diálogo pequeño centrado */
 .hoja {
   position: absolute;

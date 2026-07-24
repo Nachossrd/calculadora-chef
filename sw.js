@@ -4,17 +4,17 @@
    Al publicar cambios: subir la versión aquí Y los ?v= de
    index.html (ver README).
    ========================================================= */
-const CACHE = 'calculadora-chef-v8';
+const CACHE = 'calculadora-chef-v9';
 
 const ARCHIVOS = [
   '.',
   'index.html',
   'manifest.webmanifest',
-  'css/estilos.css?v=8',
-  'js/conversion.js?v=8',
-  'js/datos.js?v=8',
-  'js/calculo.js?v=8',
-  'js/app.js?v=8',
+  'css/estilos.css?v=9',
+  'js/conversion.js?v=9',
+  'js/datos.js?v=9',
+  'js/calculo.js?v=9',
+  'js/app.js?v=9',
   'icon-192.png',
   'icon-512.png',
 ];
