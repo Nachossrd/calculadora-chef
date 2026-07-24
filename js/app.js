@@ -1295,7 +1295,7 @@
           <button class="paso" data-accion="ev-inv" data-delta="1">+</button>
         </div>
 
-        <label class="campo">¿Cuántos días dura? <small>(solo como referencia)</small></label>
+        <label class="campo">¿Cuántos días dura? <small>(referencia: NO multiplica las cantidades)</small></label>
         <div class="stepper">
           <button class="paso" data-accion="ev-dias" data-delta="-1">−</button>
           <input data-campo="ev-dias" inputmode="numeric" value="${esc(b.diasTexto)}">

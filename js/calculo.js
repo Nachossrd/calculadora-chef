@@ -9,10 +9,12 @@ const Calculo = (() => {
 
   /* Redondeos con tolerancia: los decimales del computador nunca deben
      cambiar una compra (0,2 × 45 es 9 exacto, pero el computador entrega
-     9.000000000000002 y un techo ingenuo lo convertiría en 10). */
-  const EPS = 1e-9;
-  const techo = x => Math.ceil(x - EPS);
-  const piso = x => Math.floor(x + EPS);
+     9.000000000000002 y un techo ingenuo lo convertiría en 10).
+     La tolerancia es relativa además de absoluta, para que la garantía
+     se mantenga igual de firme con gramos que con toneladas. */
+  const tolerancia = x => Math.max(1e-9, Math.abs(x) * 1e-12);
+  const techo = x => Math.ceil(x - tolerancia(x));
+  const piso = x => Math.floor(x + tolerancia(x));
 
   /* ¿Cuántas porciones salen de UN paquete/envase del producto?
      Ej: paquete de 250 g, cada pancito usa 3 g → 83 pancitos */
