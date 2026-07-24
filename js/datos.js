@@ -30,8 +30,18 @@ const Datos = (() => {
     return f.getFullYear() + '-' + p(f.getMonth() + 1) + '-' + p(f.getDate());
   }
 
+  /* Medidas chilenas de cocina, precargadas pero 100% editables */
+  function medidasChilenas() {
+    return [
+      { id: 'md-taza',        nombre: 'taza',        familia: 'volumen', factor: 200 },
+      { id: 'md-cucharada',   nombre: 'cucharada',   familia: 'volumen', factor: 15 },
+      { id: 'md-cucharadita', nombre: 'cucharadita', familia: 'volumen', factor: 5 },
+      { id: 'md-docena',      nombre: 'docena',      familia: 'unidad',  factor: 12 },
+    ];
+  }
+
   function vacia() {
-    return { productos: [], recetas: [], eventos: [], ejemploRetirado: true };
+    return { productos: [], recetas: [], eventos: [], medidas: medidasChilenas(), ejemploRetirado: true };
   }
 
   function cargar() {
@@ -45,6 +55,10 @@ const Datos = (() => {
     if (!Array.isArray(db.productos)) db.productos = [];
     if (!Array.isArray(db.recetas)) db.recetas = [];
     if (!Array.isArray(db.eventos)) db.eventos = [];
+    if (!Array.isArray(db.medidas)) {
+      db.medidas = medidasChilenas();   // primera vez con esta versión
+      guardar();
+    }
     if (!db.ejemploRetirado) {
       db.productos = db.productos.filter(p => !IDS_EJEMPLO.includes(p.id));
       db.recetas = db.recetas.filter(r => !IDS_EJEMPLO.includes(r.id));
@@ -52,6 +66,7 @@ const Datos = (() => {
       db.ejemploRetirado = true;
       guardar();
     }
+    Conversion.registrar(db.medidas);
     return db;
   }
 
@@ -114,6 +129,45 @@ const Datos = (() => {
   const eventosQueUsan = recetaId =>
     cargar().eventos.filter(e => (e.preparaciones || []).some(p => p.recetaId === recetaId));
 
+  /* ---------- Medidas personalizadas ---------- */
+  const medidas = () => cargar().medidas;
+  const medida = id => cargar().medidas.find(m => m.id === id) || null;
+
+  function guardarMedida(m) {
+    const d = cargar();
+    const previa = m.id ? d.medidas.find(x => x.id === m.id) : null;
+    const factorPrevio = previa ? previa.factor : null;
+    const guardada = guardarEn(d.medidas, m);
+    // Si cambió la equivalencia, todo lo que la usa se recalcula solo
+    if (factorPrevio && factorPrevio !== guardada.factor) {
+      for (const p of d.productos) {
+        if (p.unidad === guardada.id) p.contenidoBase = p.contenido * guardada.factor;
+      }
+      for (const r of d.recetas) {
+        for (const ing of r.ingredientes) {
+          if (ing.unidad === guardada.id) ing.cantidadBase = (ing.cantidadBase / factorPrevio) * guardada.factor;
+        }
+      }
+    }
+    Conversion.registrar(d.medidas);
+    guardar();
+    return guardada;
+  }
+
+  function eliminarMedida(id) {
+    const d = cargar();
+    eliminarDe(d.medidas, id);
+    Conversion.registrar(d.medidas);
+    guardar();
+  }
+
+  function usosDeMedida(id) {
+    const d = cargar();
+    const enProductos = d.productos.filter(p => p.unidad === id);
+    const enRecetas = d.recetas.filter(r => r.ingredientes.some(i => i.unidad === id));
+    return { productos: enProductos, recetas: enRecetas, total: enProductos.length + enRecetas.length };
+  }
+
   /* ---------- Eventos ---------- */
   const eventos = () => cargar().eventos;
   const evento = id => cargar().eventos.find(e => e.id === id) || null;
@@ -140,8 +194,9 @@ const Datos = (() => {
     const d = cargar();
     return JSON.stringify({
       app: 'calculadora-chef',
-      version: 1,
+      version: 2,
       fecha: new Date().toISOString(),
+      medidas: d.medidas,
       productos: d.productos,
       recetas: d.recetas,
       eventos: d.eventos,
@@ -161,13 +216,30 @@ const Datos = (() => {
     }
     const UNIDADES_VALIDAS = { g: 1, kg: 1, ml: 1, l: 1, un: 1 };
 
+    const conMedidas = Array.isArray(crudo.medidas);
+    const medidasLimpias = (conMedidas ? crudo.medidas : []).slice(0, 100).map(m => {
+      if (!m || typeof m !== 'object') return null;
+      const nombre = soloTexto(m.nombre, 20).trim();
+      const factor = soloNumero(m.factor);
+      const familia = (m.familia === 'peso' || m.familia === 'volumen' || m.familia === 'unidad') ? m.familia : null;
+      if (!nombre || !factor || !familia) return null;
+      return { id: soloTexto(m.id, 60) || uid(), nombre, familia, factor };
+    }).filter(Boolean);
+
+    const unidadValida = u => !!UNIDADES_VALIDAS[u] || medidasLimpias.some(m => m.id === u);
+    const factorDe = u => {
+      if (u === 'kg' || u === 'l') return 1000;
+      const m = medidasLimpias.find(x => x.id === u);
+      return m ? m.factor : 1;
+    };
+
     const productos = crudo.productos.slice(0, 500).map(p => {
       if (!p || typeof p !== 'object') return null;
       const nombre = soloTexto(p.nombre).trim();
       const precio = soloNumero(p.precio);
       const contenido = soloNumero(p.contenido);
       if (!nombre || !precio || !contenido) return null;
-      const unidad = UNIDADES_VALIDAS[p.unidad] ? p.unidad : 'un';
+      const unidad = unidadValida(p.unidad) ? p.unidad : 'un';
       return {
         id: soloTexto(p.id, 60) || uid(),
         nombre,
@@ -175,7 +247,7 @@ const Datos = (() => {
         precio: Math.round(precio),
         contenido,
         unidad,
-        contenidoBase: Conversion.aBase(contenido, unidad),   // recalculado, no confiado
+        contenidoBase: contenido * factorDe(unidad),   // recalculado, no confiado
         proveedor: soloTexto(p.proveedor),
         notas: soloTexto(p.notas),
       };
@@ -192,7 +264,7 @@ const Datos = (() => {
         return {
           productoId: i.productoId.slice(0, 60),
           cantidadBase,
-          unidad: UNIDADES_VALIDAS[i.unidad] ? i.unidad : 'un',
+          unidad: unidadValida(i.unidad) ? i.unidad : 'un',
         };
       }).filter(Boolean);
       if (!ingredientes.length) return null;
@@ -226,7 +298,7 @@ const Datos = (() => {
       };
     }).filter(Boolean);
 
-    return { productos, recetas, eventos };
+    return { productos, recetas, eventos, medidas: medidasLimpias, conMedidas };
   }
 
   function reemplazar(datos) {
@@ -234,6 +306,8 @@ const Datos = (() => {
     d.productos = datos.productos;
     d.recetas = datos.recetas;
     d.eventos = datos.eventos;
+    if (datos.conMedidas) d.medidas = datos.medidas;   // respaldos antiguos conservan las medidas actuales
+    Conversion.registrar(d.medidas);
     guardar();
   }
 
@@ -241,6 +315,7 @@ const Datos = (() => {
     productos, producto, guardarProducto, eliminarProducto, recetasQueUsan,
     recetas, receta, guardarReceta, eliminarReceta, eventosQueUsan,
     eventos, evento, guardarEvento, eliminarEvento, duplicarEvento,
+    medidas, medida, guardarMedida, eliminarMedida, usosDeMedida,
     hoyISO, recargar, siFallaGuardado,
     exportar, validarRespaldo, reemplazar,
   };
