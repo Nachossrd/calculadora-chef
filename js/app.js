@@ -27,6 +27,7 @@
   let capaAcciones = {};
   let capaInput = null;
   let capa2Acciones = {};
+  let formTocado = false;        // ¿hay cambios sin guardar en el formulario abierto?
 
   const EMOJIS = ['🥪', '🍕', '🥤', '☕', '🍰', '🥗', '🍗', '🍤', '🧁', '🥟', '🌮', '🍹', '🍞', '🍩', '🍽️'];
   const FORMATO_EMOJI = {
@@ -104,13 +105,42 @@
     render();
   }
 
+  function botonTema() {
+    const oscuro = document.documentElement.dataset.tema === 'oscuro';
+    return `<button class="boton-tema" data-accion="alternar-tema" title="Cambiar entre modo claro y oscuro">${oscuro ? '☀️' : '🌙'}</button>`;
+  }
+
+  function cabeceraVista(titulo, sub) {
+    return `<div class="fila-saludo">
+      <div><h1 class="saludo">${titulo}</h1><p class="saludo-sub">${sub}</p></div>
+      ${botonTema()}
+    </div>`;
+  }
+
+  /* Pide confirmación antes de botar cambios sin guardar */
+  function confirmarSalida(salir) {
+    if (!formTocado) return salir();
+    confirmar({
+      titulo: '¿Salir sin guardar?',
+      detalle: 'Lo que cambiaste en esta pantalla se perderá.',
+      textoOk: 'Sí, salir',
+      alOk: salir,
+    });
+  }
+
   /* ---------- capas ---------- */
-  function abrirPanel(html) {
+  function abrirPanel(html, mantenerScroll) {
+    const cuerpoPrevio = $capa.querySelector('.cuerpo-panel');
+    const scrollPrevio = (mantenerScroll && cuerpoPrevio) ? cuerpoPrevio.scrollTop : 0;
     capaAcciones = {};
     capaInput = null;
     $capa.innerHTML = '<div class="fondo-capa"></div><section class="panel">' + html + '</section>';
     $capa.classList.add('visible');
     document.body.classList.add('sin-scroll');
+    if (scrollPrevio) {
+      const cuerpo = $capa.querySelector('.cuerpo-panel');
+      if (cuerpo) cuerpo.scrollTop = scrollPrevio;
+    }
   }
 
   function cerrarCapa() {
@@ -155,15 +185,8 @@
     const hoy = Datos.hoyISO();
     const proximos = eventos.filter(e => e.fecha && e.fecha >= hoy).sort((a, b) => a.fecha.localeCompare(b.fecha));
     const realizados = eventos.length - proximos.length;
-    const oscuro = document.documentElement.dataset.tema === 'oscuro';
 
-    let html = `<div class="fila-saludo">
-      <div>
-        <h1 class="saludo">¡Hola, Chef! 👩‍🍳</h1>
-        <p class="saludo-sub">${fechaLegible(hoy)}</p>
-      </div>
-      <button class="boton-tema" data-accion="alternar-tema" title="Cambiar entre modo claro y oscuro">${oscuro ? '☀️' : '🌙'}</button>
-    </div>`;
+    let html = cabeceraVista('¡Hola, Chef! 👩‍🍳', fechaLegible(hoy));
 
     if (!productos.length && !recetas.length && !eventos.length) {
       html += `<div class="tarjeta guia">
@@ -224,7 +247,7 @@
      VISTA: PRODUCTOS
      ========================================================= */
   function vistaProductos() {
-    return `<div class="cabecera"><h1>🧺 Productos</h1><p>Lo que compras, con precio y contenido</p></div>
+    return `${cabeceraVista('🧺 Productos', 'Lo que compras, con precio y contenido')}
     <button class="boton-principal" data-accion="nuevo-producto">➕ Nuevo producto</button>
     <div class="separador"></div>
     <div class="buscador"><span>🔍</span><input data-campo="buscar-productos" placeholder="Busca: jam…" value="${esc(filtroProductos)}"></div>
@@ -257,7 +280,7 @@
      ========================================================= */
   function vistaRecetas() {
     const recetas = Datos.recetas().slice().sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
-    let html = `<div class="cabecera"><h1>🥪 Recetas</h1><p>Tus preparaciones y cuánto rinde cada envase</p></div>
+    let html = `${cabeceraVista('🥪 Recetas', 'Tus preparaciones y cuánto rinde cada envase')}
     <button class="boton-principal" data-accion="nueva-receta">➕ Nueva receta</button>
     <div class="separador"></div>`;
     if (!recetas.length) {
@@ -270,10 +293,10 @@
         const n = r.ingredientes.length;
         return `<button class="tarjeta toque" data-accion="editar-receta" data-id="${r.id}">
           <div class="fila-card">
-            <div class="icono">${r.emoji || '🍽️'}</div>
+            <div class="icono">${esc(r.emoji || '🍽️')}</div>
             <div class="centro">
               <b>${esc(r.nombre)}</b>
-              <small>${n} ingrediente${n === 1 ? '' : 's'}${incompleta ? ' · ⚠️ falta un producto' : ''}</small>
+              <small>${n} ingrediente${n === 1 ? '' : 's'}${incompleta ? ' · ⚠️ revisa los ingredientes' : ''}</small>
             </div>
             <div class="derecha"><b>${C.pesos(costo)}</b><small>por porción</small></div>
           </div>
@@ -292,7 +315,7 @@
     const proximos = eventos.filter(e => e.fecha && e.fecha >= hoy).sort((a, b) => a.fecha.localeCompare(b.fecha));
     const pasados = eventos.filter(e => !e.fecha || e.fecha < hoy).sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''));
 
-    let html = `<div class="cabecera"><h1>🎉 Eventos</h1><p>Tus presupuestos de banquetería</p></div>
+    let html = `${cabeceraVista('🎉 Eventos', 'Tus presupuestos de banquetería')}
     <button class="boton-principal" data-accion="nuevo-evento">➕ Nuevo evento</button>`;
 
     if (!eventos.length) {
@@ -328,7 +351,7 @@
 
     if (pres.recetasIncompletas.length) {
       html += `<div class="separador"></div>
-      <div class="aviso">⚠️ Falta un producto en: ${esc(pres.recetasIncompletas.join(', '))}. Revisa esas recetas para que el presupuesto esté completo.</div>`;
+      <div class="aviso">⚠️ Revisa los ingredientes de: ${esc(pres.recetasIncompletas.join(', '))} (falta un producto o cambió su unidad). El presupuesto no los está contando.</div>`;
     }
 
     if (!pres.compras.length) {
@@ -390,7 +413,7 @@
     const r = pr.receta;
     return `<button class="tarjeta toque" data-accion="editar-receta" data-id="${r.id}">
       <div class="fila-card">
-        <div class="icono">${r.emoji || '🍽️'}</div>
+        <div class="icono">${esc(r.emoji || '🍽️')}</div>
         <div class="centro">
           <b>${esc(r.nombre)}</b>
           <small>${C.numero(pr.porciones, 0)} ${esc(r.porciones || 'porciones')} · ${esc(String(pr.porPersona).replace('.', ','))} por persona</small>
@@ -406,6 +429,7 @@
   function formProducto(id, alGuardar) {
     const ex = id ? Datos.producto(id) : null;
     productoAlGuardar = alGuardar || null;
+    if (!alGuardar) formTocado = false;   // anidado desde una receta: conserva sus cambios pendientes
     bProducto = ex ? {
       id: ex.id,
       nombre: ex.nombre,
@@ -431,7 +455,7 @@
     return `💡 Cada ${esc(b.formato)} trae <b>${C.cantidadLegible(base, C.familiaDe(b.unidad))}</b> → cada ${nombreUnidad} te cuesta <b>${precioTexto}</b>.`;
   }
 
-  function renderFormProducto() {
+  function renderFormProducto(mantenerScroll) {
     const b = bProducto;
     abrirPanel(`
       <header class="cabecera-panel">
@@ -466,12 +490,15 @@
         ${b.id ? '<div class="separador"></div><button class="boton-peligro" data-accion="prod-eliminar">🗑️ Eliminar producto</button>' : ''}
       </div>
       <footer class="pie-panel"><button class="boton-principal" data-accion="prod-guardar">✓ Guardar producto</button></footer>
-    `);
+    `, mantenerScroll);
 
     capaAcciones = {
-      cerrar: cerrarFormProducto,
-      'prod-formato': d => { b.formato = d.valor; renderFormProducto(); },
-      'prod-unidad': d => { b.unidad = d.valor; renderFormProducto(); },
+      cerrar: () => {
+        if (productoAlGuardar) cerrarFormProducto();   // vuelve a la receta, no bota nada
+        else confirmarSalida(cerrarCapa);
+      },
+      'prod-formato': d => { b.formato = d.valor; renderFormProducto(true); },
+      'prod-unidad': d => { b.unidad = d.valor; renderFormProducto(true); },
       'prod-guardar': guardarFormProducto,
       'prod-eliminar': () => eliminarProductoConfirm(b.id),
     };
@@ -556,6 +583,7 @@
         cantidadTexto: C.textoEditable(i.cantidadBase, i.unidad),
       })),
     } : { id: null, nombre: '', emoji: '🥪', porciones: 'porciones', ingredientes: [] };
+    formTocado = false;
     renderFormReceta();
   }
 
@@ -620,7 +648,7 @@
     if (costo) costo.innerHTML = lineaCostoPorcion();
   }
 
-  function renderFormReceta() {
+  function renderFormReceta(mantenerScroll) {
     const b = bReceta;
     const filas = b.ingredientes.map((ing, i) => filaIngrediente(ing, i)).join('');
     abrirPanel(`
@@ -648,13 +676,13 @@
         ${b.id ? '<div class="separador"></div><button class="boton-peligro" data-accion="rec-eliminar">🗑️ Eliminar receta</button>' : ''}
       </div>
       <footer class="pie-panel"><button class="boton-principal" data-accion="rec-guardar">✓ Guardar receta</button></footer>
-    `);
+    `, mantenerScroll);
 
     capaAcciones = {
-      cerrar: cerrarCapa,
-      'rec-emoji': d => { b.emoji = d.valor; renderFormReceta(); },
-      'rec-unidad': d => { b.ingredientes[+d.i].unidad = d.valor; renderFormReceta(); },
-      'rec-quitar': d => { b.ingredientes.splice(+d.i, 1); renderFormReceta(); },
+      cerrar: () => confirmarSalida(cerrarCapa),
+      'rec-emoji': d => { b.emoji = d.valor; renderFormReceta(true); },
+      'rec-unidad': d => { b.ingredientes[+d.i].unidad = d.valor; renderFormReceta(true); },
+      'rec-quitar': d => { b.ingredientes.splice(+d.i, 1); renderFormReceta(true); },
       'rec-agregar': abrirPickerProducto,
       'rec-guardar': guardarFormReceta,
       'rec-eliminar': () => eliminarRecetaConfirm(b.id),
@@ -760,7 +788,7 @@
       </div>
     `);
     capaAcciones = {
-      'picker-volver': renderFormReceta,
+      'picker-volver': () => renderFormReceta(),
       'picker-elegir': d => {
         const p = Datos.producto(d.id);
         if (!p) return;
@@ -797,6 +825,7 @@
       id: null, nombre: '', fecha: Datos.hoyISO(7),
       invitadosTexto: '30', diasTexto: '1', sel: new Map(),
     };
+    formTocado = false;
     renderFormEvento();
   }
 
@@ -826,7 +855,7 @@
       </div>` : '';
     return `<div class="sel-receta ${activa ? 'activa' : ''}">
       <button class="sel-cab" data-accion="ev-toggle" data-id="${r.id}">
-        <span>${r.emoji || '🍽️'} ${esc(r.nombre)}</span><span class="marca">✓</span>
+        <span>${esc(r.emoji || '🍽️')} ${esc(r.nombre)}</span><span class="marca">✓</span>
       </button>${cuerpo}</div>`;
   }
 
@@ -850,7 +879,7 @@
     else if (campo === 'ev-dias') bEvento.diasTexto = String(nuevo);
   }
 
-  function renderFormEvento() {
+  function renderFormEvento(mantenerScroll) {
     const b = bEvento;
     const recetas = Datos.recetas().slice().sort((x, y) => x.nombre.localeCompare(y.nombre, 'es'));
     const filas = recetas.length
@@ -887,14 +916,14 @@
         ${filas}
       </div>
       <footer class="pie-panel"><button class="boton-principal" data-accion="ev-guardar">✓ Guardar y ver presupuesto</button></footer>
-    `);
+    `, mantenerScroll);
 
     capaAcciones = {
-      cerrar: cerrarCapa,
+      cerrar: () => confirmarSalida(cerrarCapa),
       'ev-toggle': d => {
         if (b.sel.has(d.id)) b.sel.delete(d.id);
         else b.sel.set(d.id, '1');
-        renderFormEvento();
+        renderFormEvento(true);
       },
       'ev-inv': d => ajustarCampo('ev-invitados', Number(d.delta), 1),
       'ev-dias': d => ajustarCampo('ev-dias', Number(d.delta), 1),
@@ -1063,13 +1092,18 @@
       const el = e.target.closest('[data-accion]');
       if (el && capaAcciones[el.dataset.accion]) {
         e.preventDefault();
-        capaAcciones[el.dataset.accion](el.dataset, el);
+        const accion = el.dataset.accion;
+        if (accion !== 'cerrar' && accion !== 'picker-volver') formTocado = true;
+        capaAcciones[accion](el.dataset, el);
       }
     });
 
     const manejarInputCapa = e => {
       const el = e.target;
-      if (el.dataset && el.dataset.campo && capaInput) capaInput(el.dataset.campo, el);
+      if (el.dataset && el.dataset.campo && capaInput) {
+        if (el.dataset.campo !== 'picker-buscar') formTocado = true;
+        capaInput(el.dataset.campo, el);
+      }
     };
     $capa.addEventListener('input', manejarInputCapa);
     $capa.addEventListener('change', manejarInputCapa);

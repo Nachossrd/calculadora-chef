@@ -19,12 +19,19 @@ const Calculo = (() => {
     return producto.contenidoBase ? producto.precio / producto.contenidoBase : 0;
   }
 
+  /* ¿Se puede usar este ingrediente? El producto debe existir y su unidad
+     ser de la misma familia (ej: si el producto pasó de gramos a unidades,
+     la receta antigua queda inválida y se marca, en vez de calcular mal). */
+  function utilizable(ing, producto) {
+    return !!producto && Conversion.sonCompatibles(ing.unidad || 'un', producto.unidad);
+  }
+
   /* Costo exacto de UNA porción de la receta (sin redondear paquetes) */
   function costoPorcion(receta, obtenerProducto) {
     let total = 0;
     for (const ing of receta.ingredientes) {
       const p = obtenerProducto(ing.productoId);
-      if (p) total += precioPorBase(p) * ing.cantidadBase;
+      if (utilizable(ing, p)) total += precioPorBase(p) * ing.cantidadBase;
     }
     return total;
   }
@@ -34,15 +41,16 @@ const Calculo = (() => {
     const lista = [];
     for (const ing of receta.ingredientes) {
       const p = obtenerProducto(ing.productoId);
-      if (!p) continue;
+      if (!utilizable(ing, p)) continue;
       lista.push({ producto: p, ingrediente: ing, porciones: rendimiento(p, ing.cantidadBase) });
     }
     return lista;
   }
 
-  /* ¿A la receta le falta algún producto (eliminado del catálogo)? */
+  /* ¿La receta tiene ingredientes con problemas?
+     (producto eliminado, o cuya unidad cambió de familia) */
   function faltanProductos(receta, obtenerProducto) {
-    return receta.ingredientes.some(ing => !obtenerProducto(ing.productoId));
+    return receta.ingredientes.some(ing => !utilizable(ing, obtenerProducto(ing.productoId)));
   }
 
   /* =========================================================
@@ -78,7 +86,7 @@ const Calculo = (() => {
 
       for (const ing of receta.ingredientes) {
         const p = obtenerProducto(ing.productoId);
-        if (!p) continue;
+        if (!utilizable(ing, p)) continue;
         necesidades.set(p.id, (necesidades.get(p.id) || 0) + ing.cantidadBase * porciones);
       }
     }
